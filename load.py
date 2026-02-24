@@ -32,6 +32,9 @@ _plugin: Optional[HotkeyPlugin] = None
 _bindings_store: Optional[BindingsStore] = None
 _bindings_document: Optional[BindingsDocument] = None
 _settings_panel: Optional[SettingsPanel] = None
+_DISPATCH_PUMP_INTERVAL_MS = 50
+_dispatch_pump_owner: Optional[object] = None
+_dispatch_pump_after_id: Optional[object] = None
 
 
 def plugin_start3(plugin_dir: str) -> str:
@@ -47,12 +50,14 @@ def plugin_start3(plugin_dir: str) -> str:
     if not _plugin.replace_bindings(bindings):
         logger.warning("Some bindings failed to register during startup")
     _plugin.start()
+    _ensure_dispatch_pump_running()
     return plugin_name
 
 
 def plugin_stop() -> None:
     """EDMC plugin stop hook."""
     global _plugin, _settings_panel
+    _stop_dispatch_pump()
     if _plugin is not None:
         _plugin.stop()
     _plugin = None
@@ -112,12 +117,18 @@ def dashboard_entry(cmdr: str, is_beta: bool, entry: dict) -> None:
     _pump_dispatch_queue()
 
 
+def plugin_app(parent: object) -> None:
+    _ensure_dispatch_pump_running(parent)
+    return None
+
+
 def plugin_prefs(parent: object, cmdr: str, is_beta: bool) -> Optional[object]:
     del cmdr, is_beta
     global _settings_panel
     plugin = _require_started()
     if plugin is None:
         return None
+    _ensure_dispatch_pump_running(parent)
     notebook_widgets = _resolve_notebook_widgets(parent)
     container = _create_notebook_container(parent, notebook_widgets)
     ui_parent = container if container is not None else parent
@@ -202,6 +213,66 @@ def _binding_from_record(record: BindingRecord) -> Binding:
         payload=record.payload,
         enabled=record.enabled,
     )
+
+
+def _ensure_dispatch_pump_running(owner: object | None = None) -> None:
+    global _dispatch_pump_owner
+    if _dispatch_pump_after_id is not None:
+        return
+    resolved_owner = owner if _supports_after_callbacks(owner) else _resolve_default_tk_root()
+    if not _supports_after_callbacks(resolved_owner):
+        return
+    _dispatch_pump_owner = resolved_owner
+    _schedule_dispatch_pump()
+
+
+def _schedule_dispatch_pump() -> None:
+    global _dispatch_pump_after_id
+    if not _supports_after_callbacks(_dispatch_pump_owner):
+        _dispatch_pump_after_id = None
+        return
+    try:
+        _dispatch_pump_after_id = _dispatch_pump_owner.after(  # type: ignore[attr-defined]
+            _DISPATCH_PUMP_INTERVAL_MS,
+            _dispatch_pump_tick,
+        )
+    except Exception as exc:
+        _dispatch_pump_after_id = None
+        logger.debug("Failed to schedule main-thread dispatch pump", exc_info=exc)
+
+
+def _dispatch_pump_tick() -> None:
+    global _dispatch_pump_after_id
+    _dispatch_pump_after_id = None
+    _pump_dispatch_queue()
+    _schedule_dispatch_pump()
+
+
+def _stop_dispatch_pump() -> None:
+    global _dispatch_pump_owner, _dispatch_pump_after_id
+    owner = _dispatch_pump_owner
+    after_id = _dispatch_pump_after_id
+    _dispatch_pump_owner = None
+    _dispatch_pump_after_id = None
+    if owner is None or after_id is None or not hasattr(owner, "after_cancel"):
+        return
+    try:
+        owner.after_cancel(after_id)
+    except Exception as exc:
+        logger.debug("Failed to cancel main-thread dispatch pump", exc_info=exc)
+
+
+def _resolve_default_tk_root() -> object | None:
+    try:
+        import tkinter as tk
+
+        return getattr(tk, "_default_root", None)
+    except Exception:
+        return None
+
+
+def _supports_after_callbacks(widget: object | None) -> bool:
+    return widget is not None and hasattr(widget, "after")
 
 
 def _resolve_notebook_widgets(parent: object) -> object | None:

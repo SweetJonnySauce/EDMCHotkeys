@@ -50,6 +50,20 @@ class _FakePumpPlugin:
         return 1
 
 
+class _FakeAfterWidget:
+    def __init__(self) -> None:
+        self.after_calls: list[tuple[int, object]] = []
+        self.cancelled_ids: list[str] = []
+
+    def after(self, delay_ms: int, callback) -> str:
+        after_id = f"after-{len(self.after_calls) + 1}"
+        self.after_calls.append((delay_ms, callback))
+        return after_id
+
+    def after_cancel(self, after_id: str) -> None:
+        self.cancelled_ids.append(after_id)
+
+
 def test_worker_dispatch_smoke_runs_callback_off_main_thread() -> None:
     main_thread_id = threading.get_ident()
     callback_thread_ids: list[int] = []
@@ -118,3 +132,23 @@ def test_hook_smoke_journal_and_dashboard_pump_dispatch_queue(monkeypatch) -> No
 
     assert result is None
     assert fake_plugin.pump_calls == 2
+
+
+def test_dispatch_pump_scheduler_runs_and_can_be_stopped(monkeypatch) -> None:
+    fake_plugin = _FakePumpPlugin()
+    fake_widget = _FakeAfterWidget()
+    monkeypatch.setattr(plugin_load, "_plugin", fake_plugin)
+    monkeypatch.setattr(plugin_load, "_dispatch_pump_owner", None)
+    monkeypatch.setattr(plugin_load, "_dispatch_pump_after_id", None)
+
+    plugin_load._ensure_dispatch_pump_running(fake_widget)
+    assert fake_widget.after_calls
+    delay_ms, callback = fake_widget.after_calls[0]
+    assert delay_ms == plugin_load._DISPATCH_PUMP_INTERVAL_MS
+
+    callback()
+    assert fake_plugin.pump_calls == 1
+    assert len(fake_widget.after_calls) == 2
+
+    plugin_load._stop_dispatch_pump()
+    assert fake_widget.cancelled_ids == ["after-2"]
