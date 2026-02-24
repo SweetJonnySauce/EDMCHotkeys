@@ -25,10 +25,15 @@
 - Do not call `event_generate()` during shutdown; use `config.shutting_down` to detect shutdown.
 - Shared modules across plugins can collide; relative imports are recommended to avoid name conflicts.
 
+## Single Plugin Topology (Normative)
+- This project is a single EDMC plugin: `EDMC-Hotkeys`.
+- The EDMC entry point is `EDMC-Hotkeys/load.py` (one `load.py` only).
+- Action registry and hotkey dispatch are internal modules within this plugin, not separate EDMC plugins.
+
 ## High-Level Architecture Options
-1. **Action Registry Plugin (preferred baseline)**
-   - This plugin owns a registry of actions (string IDs -> callable + metadata).
-   - Other plugins expose actions by registering with this plugin at runtime.
+1. **Internal Action Registry (preferred baseline)**
+   - EDMC-Hotkeys owns an internal registry of actions (string IDs -> callable + metadata).
+   - EDMC-Hotkeys exposes registry helpers from its single plugin module.
    - Hotkey bindings map to action IDs.
 
 2. **Synthetic Event Injection**
@@ -43,34 +48,34 @@
    - Action registry is primary.
    - Optional synthetic events for legacy compatibility or broad fan-out.
 
-## Action Registry Plugin - Detailed Design
-- Implement as a **package plugin** so it loads before non-package plugins.
-- Expose a stable API for action registration and discovery, intended to be imported by other plugins.
+## Internal Action Registry - Detailed Design
+- Implement as internal modules under `EDMC-Hotkeys`.
+- Expose a stable API for action registration and discovery from the single plugin `load.py`.
 - Registry entry fields (conceptual):
   - `id`: stable action ID (example: `edmcmodernoverlay.toggle`).
   - `label`: human-readable name for settings UI.
   - `plugin`: owning plugin name.
   - `callback`: callable to execute.
   - `params_schema` (optional): schema describing action parameters so the UI can render inputs.
-- `thread_policy`: indicates whether the action must run on main thread or can run in a worker.
-  - Default policy: `main` (safe by default).
-- `enabled` (dynamic): if `False`, action is visible but unavailable.
+  - `thread_policy`: indicates whether the action must run on main thread or can run in a worker.
+    - Default policy: `main` (safe by default).
+  - `enabled` (dynamic): if `False`, action is visible but unavailable.
 - Registration flow:
-  - Registry plugin loads first and exposes `register_action(...)` and `list_actions()`.
-  - Other plugins call `register_action(...)` during `plugin_start3`.
-  - Hotkey plugin reads `list_actions()` to populate the settings UI.
+  - `EDMC-Hotkeys/load.py` initializes the registry and exposes `register_action(...)` and `list_actions()`.
+  - Actions register against this internal registry.
+  - Hotkey dispatch reads the same registry for action lookup.
 - Dispatch flow:
   - Hotkey fires -> lookup by action ID -> dispatch.
   - Default dispatch is on the main thread. This prevents Tkinter UI crashes from background thread calls.
   - Actions that are explicitly marked `worker` may run in a background thread; UI-safe actions should remain on `main`.
 - Storage:
-  - Hotkey plugin stores bindings as `{hotkey, action_id, payload}` in its own config.
+  - Hotkey plugin stores bindings as `{hotkey, action_id, payload}` in `bindings.json` in the plugin directory.
 - Failure behavior:
   - Missing action ID -> no-op + log line.
   - Exceptions in action -> caught/logged to avoid crashing EDMC.
 
 ## Action Registry API (Normative)
-- Plugin ID / config prefix: `edmc_hotkeys`.
+- Plugin ID / config prefix: `edmc_hotkeys` (single plugin name: `EDMC-Hotkeys`).
 - Registration API: `register_action(action)` returns `True`/`False` and rejects duplicate IDs (first wins).
 - Discovery: `list_actions()` returns all actions; `get_action(action_id)` returns the action or `None`.
 - Dispatch: `invoke_action(action_id, payload=None, source="hotkey")` performs lookup + dispatch with logging.
@@ -110,21 +115,31 @@
 - Normalize modifier state by also grabbing with common lock modifiers (CapsLock/NumLock/ScrollLock) to avoid missing events.
 - Run the X11 event loop in a dedicated background thread, translate `KeyPress` events into normalized hotkey IDs, and dispatch via the Action Registry.
 
-## Config Storage + Migration (Normative)
-- Single JSON blob stored at config key `edmc_hotkeys.bindings`.
+## Bindings File Storage (Normative)
+- Single JSON blob stored in `<plugin_dir>/bindings.json`.
 - Schema (v1):
   - `version`: `1`
   - `active_profile`: string, default "Default"
   - `profiles`: map of profile name -> list of bindings
   - binding fields: `id`, `hotkey`, `action_id`, `payload` (optional), `enabled` (bool)
 - Reserve profile switching action: `edmc_hotkeys.profile.set` with `profile_name` parameter.
-- Migration: missing key -> create v1 defaults; missing `version` -> treat as v1.
+- Initialization:
+  - Missing file -> create v1 defaults and write `bindings.json`.
+  - No migration from EDMC config key storage is performed.
+- Other plugin settings:
+  - Store non-binding settings in EDMC config using the `edmc_hotkeys.*` namespace.
 
 ## Decisions / Clarifications
-- Store mappings in EDMC config per best practices.
+- Store mappings in plugin-local `bindings.json` in the EDMC-Hotkeys plugin directory.
+- Store non-binding settings in EDMC config with the `edmc_hotkeys` namespace.
 - Profile-aware bindings. Start with a "Default" profile that works globally; profile switching is key-bindable.
 - UI requirement: EDMC settings dialog needs a flexible, table-like editor for bindings:
   - Hotkey entry cell.
   - Plugin selection cell.
   - Command/action selection cell.
   - vertical scroll bar
+
+## Packaging + Setup Docs
+- Packaged EDMC dependency bundling plan: `docs/packaged-edmc-dependency-bundling.md`
+- Linux user setup (Wayland portal, X11): `docs/linux-user-setup.md`
+- Manual QA checklist: `docs/manual-qa-checklist.md`

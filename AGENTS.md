@@ -18,7 +18,7 @@
 - Prefer fast/no-op paths in release builds; keep debug logging/dev overlays gated behind dev mode.
 
 ## Per-Iteration Test Plan
-- **Env setup (once per machine):** `python3 -m venv .venv && source .venv/bin/activate && pip install -U pip && pip install -e .[dev]`
+- **Env setup (once per machine):** `python3 -m venv .venv && source .venv/bin/activate && python -m pip install -U pip && python -m pip install -r requirements-dev.txt`
 - **Headless quick pass (default for each step):** `source .venv/bin/activate && python -m pytest` (scope with `tests/…` or `-k` as needed).
 - **Core project checks:** `make check` (lint/typecheck/pytest defaults) and `make test` (project test target) from repo root.
 - **Full suite with GUI deps (as applicable):** ensure GUI/runtime deps are installed (e.g., PyQt for Qt projects), then set the required env flag (e.g., `PYQT_TESTS=1`) and run the full suite.

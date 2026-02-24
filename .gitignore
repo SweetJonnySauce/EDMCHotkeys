@@ -1,0 +1,5 @@
+__pycache__/
+.venv/
+Xlib/
+third_party_licenses/
+six.py

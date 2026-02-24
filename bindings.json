@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "active_profile": "Default",
+  "profiles": {
+    "Default": [
+      {
+        "id": "capture_test",
+        "hotkey": "Ctrl+Shift+F10",
+        "action_id": "dev.capture.test",
+        "enabled": true
+      }
+    ]
+  }
+}
