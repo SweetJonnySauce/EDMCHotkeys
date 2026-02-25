@@ -8,8 +8,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
-from .backends.base import HotkeyBackend
+from .backends.base import BackendCapabilities, HotkeyBackend
 from .backends.selector import select_backend
+from .hotkey import has_side_specific_modifiers, pretty_hotkey_from_text
 from .registry import Action, ActionRegistry, DispatchExecutor, QueuedMainThreadDispatchExecutor
 
 
@@ -22,6 +23,15 @@ class Binding:
     action_id: str
     payload: Optional[dict[str, Any]] = None
     enabled: bool = True
+    plugin: str = ""
+
+    @property
+    def pretty_hotkey(self) -> str:
+        return pretty_hotkey_from_text(self.hotkey) or self.hotkey
+
+    @property
+    def requires_side_specific_modifiers(self) -> bool:
+        return has_side_specific_modifiers(self.hotkey)
 
 
 class HotkeyPlugin:
@@ -89,6 +99,12 @@ class HotkeyPlugin:
 
     def register_action(self, action: Action) -> bool:
         return self._registry.register_action(action)
+
+    def backend_capabilities(self) -> BackendCapabilities:
+        return self._hotkey_backend.capabilities()
+
+    def backend_name(self) -> str:
+        return self._hotkey_backend.name
 
     def list_actions(self) -> list[Action]:
         return self._registry.list_actions()
@@ -161,7 +177,7 @@ class HotkeyPlugin:
             action_id=binding.action_id,
             payload=binding.payload,
             source=source,
-            hotkey=binding.hotkey,
+            hotkey=binding.pretty_hotkey,
         )
 
     def _on_backend_hotkey(self, binding_id: str) -> None:
@@ -177,7 +193,7 @@ class HotkeyPlugin:
         self._logger.debug(
             "Hotkey pressed: binding_id=%s hotkey=%s action_id=%s enabled=%s source=%s",
             binding.id,
-            binding.hotkey,
+            binding.pretty_hotkey,
             binding.action_id,
             binding.enabled,
             source,

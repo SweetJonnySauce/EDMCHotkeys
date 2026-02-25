@@ -34,8 +34,8 @@ invoke_bound_action(binding: Binding, source: str = "hotkey") -> bool
 
 `list_bindings(plugin_name)` behavior:
 - `plugin_name` is required (empty string returns `[]`).
-- matching is case-insensitive against `Action.plugin`.
-- returns only bindings assigned to actions owned by that plugin.
+- matching is case-insensitive against persisted binding `plugin`.
+- returns only bindings owned by that plugin.
 
 Action shape:
 
@@ -56,6 +56,7 @@ Binding shape:
 ```python
 Binding(
     id: str,
+    plugin: str,
     hotkey: str,
     action_id: str,
     payload: dict | None = None,
@@ -73,7 +74,7 @@ def my_callback(*, payload=None, source="hotkey", hotkey=None):
 
 - `payload`: optional dict from the binding.
 - `source`: where invocation came from (for example `backend:linux-x11`).
-- `hotkey`: hotkey string when invoked via a binding (optional; omitted if not available).
+- `hotkey`: pretty hotkey string when invoked via a binding (for example `LCtrl+RShift+A`; optional and omitted if not available).
 - `EDMC-Hotkeys` only passes `hotkey` when your callback declares it or accepts `**kwargs`.
 
 ## Minimal Registration Example
@@ -179,7 +180,9 @@ Add bindings in `EDMC-Hotkeys/bindings.json` (or via settings UI) that target yo
 ```json
 {
   "id": "test-on",
-  "hotkey": "Ctrl+Shift+1",
+  "plugin": "My-Test-Plugin",
+  "modifiers": ["ctrl_l", "shift_r"],
+  "key": "1",
   "action_id": "my_test.on",
   "enabled": true
 }
@@ -190,12 +193,24 @@ Color payload example:
 ```json
 {
   "id": "test-color-red",
-  "hotkey": "Ctrl+Shift+4",
+  "plugin": "My-Test-Plugin",
+  "modifiers": ["ctrl_l", "shift_r"],
+  "key": "4",
   "action_id": "my_test.color",
   "payload": {"color": "red"},
   "enabled": true
 }
 ```
+
+Hotkey token notes:
+- `modifiers` must use side-specific canonical tokens (`ctrl_l`, `ctrl_r`, `alt_l`, `alt_r`, `shift_l`, `shift_r`, `win_l`, `win_r`).
+- Generic tokens like `ctrl`/`alt`/`shift` are not valid in v3 bindings.
+
+Backend behavior notes:
+- On Linux X11, side-specific bindings are detected using keymap polling plus edge detection (press transition), so modifier press order is supported.
+- On Linux X11, non-side-specific/global bindings continue to use passive grabs.
+- Side-specific bindings fire once per key press chord; release and press again to trigger again.
+- On Wayland, side-specific modifier bindings remain unsupported and are auto-disabled with diagnostics.
 
 ## Troubleshooting
 - `Action id '...' was not found`:

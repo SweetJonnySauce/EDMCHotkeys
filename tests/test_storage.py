@@ -16,7 +16,7 @@ def test_load_or_create_creates_default_bindings_file(tmp_path) -> None:
     assert document == default_document()
     assert file_path.exists()
     saved = json.loads(file_path.read_text(encoding="utf-8"))
-    assert saved["version"] == 1
+    assert saved["version"] == 3
     assert saved["active_profile"] == "Default"
 
 
@@ -24,14 +24,16 @@ def test_store_roundtrip_preserves_profiles(tmp_path) -> None:
     file_path = tmp_path / "bindings.json"
     store = BindingsStore(file_path, logger=logging.getLogger("test.storage"))
     document = BindingsDocument(
-        version=1,
+        version=3,
         active_profile="Combat",
         profiles={
             "Default": [],
             "Combat": [
                 BindingRecord(
                     id="b1",
-                    hotkey="Ctrl+Shift+O",
+                    plugin="EDMC-Hotkeys-Test",
+                    modifiers=("ctrl_l", "shift_l"),
+                    key="o",
                     action_id="overlay.toggle",
                     payload={"visible": False},
                     enabled=True,
@@ -54,4 +56,3 @@ def test_invalid_file_falls_back_to_default(tmp_path) -> None:
     loaded = store.load_or_create()
 
     assert loaded == default_document()
-

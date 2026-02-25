@@ -26,8 +26,8 @@ def test_validation_reports_hotkey_conflict() -> None:
     document = default_document()
     state = SettingsState.from_document(document=document, actions=[_action("a.one"), _action("a.two")])
     state.rows = [
-        BindingRow(id="b1", hotkey="Ctrl+Shift+O", plugin="plugin", action_id="a.one", enabled=True),
-        BindingRow(id="b2", hotkey="ctrl+shift+o", plugin="plugin", action_id="a.two", enabled=True),
+        BindingRow(id="b1", hotkey="LCtrl+LShift+O", plugin="plugin", action_id="a.one", enabled=True),
+        BindingRow(id="b2", hotkey="ctrl_l+shift_l+o", plugin="plugin", action_id="a.two", enabled=True),
     ]
 
     issues = state.validate()
@@ -39,19 +39,19 @@ def test_validation_reports_unknown_action() -> None:
     document = default_document()
     state = SettingsState.from_document(document=document, actions=[_action("known.action")])
     state.rows = [
-        BindingRow(id="b1", hotkey="Ctrl+Shift+O", plugin="plugin", action_id="unknown.action", enabled=True),
+        BindingRow(id="b1", hotkey="LCtrl+LShift+O", plugin="plugin", action_id="unknown.action", enabled=True),
     ]
 
     issues = state.validate()
 
-    assert any(issue.field == "action_id" and issue.level == "error" for issue in issues)
+    assert any(issue.field == "action_id" and issue.level == "warning" for issue in issues)
 
 
 def test_validation_reports_disabled_action_warning() -> None:
     document = default_document()
     state = SettingsState.from_document(document=document, actions=[_action("known.action", enabled=False)])
     state.rows = [
-        BindingRow(id="b1", hotkey="Ctrl+Shift+O", plugin="plugin", action_id="known.action", enabled=True),
+        BindingRow(id="b1", hotkey="LCtrl+LShift+O", plugin="plugin", action_id="known.action", enabled=True),
     ]
 
     issues = state.validate()
@@ -71,13 +71,15 @@ def test_validation_allows_empty_rows_list() -> None:
 
 def test_from_document_exposes_payload_text() -> None:
     document = BindingsDocument(
-        version=1,
+        version=3,
         active_profile="Default",
         profiles={
             "Default": [
                 BindingRecord(
                     id="b1",
-                    hotkey="Ctrl+Shift+O",
+                    plugin="plugin",
+                    modifiers=("ctrl_l", "shift_l"),
+                    key="o",
                     action_id="known.action",
                     payload={"color": "red", "level": 2},
                     enabled=True,
@@ -97,7 +99,7 @@ def test_validation_reports_invalid_payload() -> None:
     state.rows = [
         BindingRow(
             id="b1",
-            hotkey="Ctrl+Shift+O",
+            hotkey="LCtrl+LShift+O",
             plugin="plugin",
             action_id="known.action",
             payload_text="{oops",
@@ -112,16 +114,16 @@ def test_validation_reports_invalid_payload() -> None:
 
 def test_to_document_preserves_non_active_profiles() -> None:
     document = BindingsDocument(
-        version=1,
+        version=3,
         active_profile="Default",
         profiles={
-            "Default": [BindingRecord(id="old", hotkey="F1", action_id="a.old", enabled=True)],
-            "Mining": [BindingRecord(id="m1", hotkey="F2", action_id="a.mine", enabled=True)],
+            "Default": [BindingRecord(id="old", plugin="plugin", modifiers=(), key="f1", action_id="a.old", enabled=True)],
+            "Mining": [BindingRecord(id="m1", plugin="plugin", modifiers=(), key="f2", action_id="a.mine", enabled=True)],
         },
     )
     state = SettingsState.from_document(document=document, actions=[_action("a.new")])
     state.rows = [
-        BindingRow(id="new", hotkey="Ctrl+Shift+N", plugin="plugin", action_id="a.new", enabled=True),
+        BindingRow(id="new", hotkey="LCtrl+LShift+N", plugin="plugin", action_id="a.new", enabled=True),
     ]
 
     updated = state.to_document()
@@ -137,7 +139,7 @@ def test_to_document_parses_payload_text() -> None:
     state.rows = [
         BindingRow(
             id="b1",
-            hotkey="Ctrl+Shift+O",
+            hotkey="LCtrl+LShift+O",
             plugin="plugin",
             action_id="known.action",
             payload_text='{"color":"lime"}',
@@ -147,3 +149,15 @@ def test_to_document_parses_payload_text() -> None:
 
     updated = state.to_document()
     assert updated.profiles["Default"][0].payload == {"color": "lime"}
+
+
+def test_validation_requires_plugin() -> None:
+    document = default_document()
+    state = SettingsState.from_document(document=document, actions=[_action("known.action")])
+    state.rows = [
+        BindingRow(id="b1", hotkey="LCtrl+LShift+O", plugin="", action_id="known.action", enabled=True),
+    ]
+
+    issues = state.validate()
+
+    assert any(issue.field == "plugin" and issue.level == "error" for issue in issues)

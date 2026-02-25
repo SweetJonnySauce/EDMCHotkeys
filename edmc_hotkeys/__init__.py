@@ -3,6 +3,7 @@
 from .plugin import Binding, HotkeyPlugin
 from .backends import (
     BackendAvailability,
+    BackendCapabilities,
     HotkeyBackend,
     NullHotkeyBackend,
     WaylandPortalBackend,
@@ -27,6 +28,7 @@ __all__ = [
     "ActionOption",
     "ActionRegistry",
     "BackendAvailability",
+    "BackendCapabilities",
     "BindingRecord",
     "BindingRow",
     "BindingsDocument",

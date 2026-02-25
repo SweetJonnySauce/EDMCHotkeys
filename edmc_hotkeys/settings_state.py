@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any, Iterable
 
 from .bindings import BindingRecord, BindingsDocument
+from .hotkey import canonical_hotkey_text, parse_hotkey, pretty_hotkey_text
 from .registry import Action
 
 
@@ -68,11 +69,12 @@ class SettingsState:
         rows: list[BindingRow] = []
         for binding in active_bindings:
             option = option_by_id.get(binding.action_id)
-            plugin_name = option.plugin if option is not None else ""
+            plugin_name = binding.plugin or (option.plugin if option is not None else "")
+            hotkey = pretty_hotkey_text(modifiers=binding.modifiers, key=binding.key) or binding.key
             rows.append(
                 BindingRow(
                     id=binding.id,
-                    hotkey=binding.hotkey,
+                    hotkey=hotkey,
                     plugin=plugin_name,
                     action_id=binding.action_id,
                     payload=binding.payload,
@@ -116,6 +118,21 @@ class SettingsState:
                         message="Hotkey is required",
                     )
                 )
+                parsed_hotkey = None
+            else:
+                parsed_hotkey = parse_hotkey(row.hotkey)
+                if parsed_hotkey is None:
+                    issues.append(
+                        ValidationIssue(
+                            level="error",
+                            row_id=row_key,
+                            field="hotkey",
+                            message=(
+                                "Hotkey must include one key and side-specific modifiers "
+                                "(LCtrl/RCtrl/LAlt/RAlt/LShift/RShift/LWin/RWin)"
+                            ),
+                        )
+                    )
 
             if not row.action_id:
                 issues.append(
@@ -129,7 +146,7 @@ class SettingsState:
             elif row.action_id not in action_ids:
                 issues.append(
                     ValidationIssue(
-                        level="error",
+                        level="warning",
                         row_id=row_key,
                         field="action_id",
                         message=f"Unknown action '{row.action_id}'",
@@ -146,6 +163,25 @@ class SettingsState:
                             message=f"Action '{row.action_id}' is currently disabled",
                         )
                     )
+                if row.plugin and option.plugin and row.plugin.casefold() != option.plugin.casefold():
+                    issues.append(
+                        ValidationIssue(
+                            level="error",
+                            row_id=row_key,
+                            field="plugin",
+                            message=f"Plugin must match action owner '{option.plugin}'",
+                        )
+                    )
+
+            if not row.plugin:
+                issues.append(
+                    ValidationIssue(
+                        level="error",
+                        row_id=row_key,
+                        field="plugin",
+                        message="Plugin is required",
+                    )
+                )
 
             payload_issue = _validate_payload_text(row.payload_text)
             if payload_issue is not None:
@@ -158,8 +194,13 @@ class SettingsState:
                     )
                 )
 
-            if row.enabled and row.hotkey:
-                hotkey_key = row.hotkey.casefold()
+            if row.enabled and parsed_hotkey is not None:
+                hotkey_key = canonical_hotkey_text(
+                    modifiers=parsed_hotkey.modifiers,
+                    key=parsed_hotkey.key,
+                )
+                if hotkey_key is None:
+                    continue
                 conflict_with = seen_hotkeys.get(hotkey_key)
                 if conflict_with is not None:
                     issues.append(
@@ -176,16 +217,12 @@ class SettingsState:
 
     def to_document(self) -> BindingsDocument:
         updated_profiles = dict(self.document.profiles)
-        updated_profiles[self.document.active_profile] = [
-            BindingRecord(
-                id=row.id,
-                hotkey=row.hotkey,
-                action_id=row.action_id,
-                payload=_payload_from_row(row),
-                enabled=row.enabled,
-            )
-            for row in self.rows
-        ]
+        converted_rows: list[BindingRecord] = []
+        for row in self.rows:
+            converted = _binding_record_from_row(row)
+            if converted is not None:
+                converted_rows.append(converted)
+        updated_profiles[self.document.active_profile] = converted_rows
         return BindingsDocument(
             version=self.document.version,
             active_profile=self.document.active_profile,
@@ -227,3 +264,18 @@ def _payload_from_row(row: BindingRow) -> dict | None:
 
 def _canonical_payload_json(payload: dict[str, Any]) -> str:
     return json.dumps(payload, sort_keys=True, separators=(",", ":"))
+
+
+def _binding_record_from_row(row: BindingRow) -> BindingRecord | None:
+    parsed_hotkey = parse_hotkey(row.hotkey)
+    if parsed_hotkey is None:
+        return None
+    return BindingRecord(
+        id=row.id,
+        plugin=row.plugin,
+        modifiers=parsed_hotkey.modifiers,
+        key=parsed_hotkey.key,
+        action_id=row.action_id,
+        payload=_payload_from_row(row),
+        enabled=row.enabled,
+    )

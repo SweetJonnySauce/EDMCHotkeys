@@ -19,6 +19,13 @@ class BackendAvailability:
     reason: Optional[str] = None
 
 
+@dataclass(frozen=True)
+class BackendCapabilities:
+    """Capability flags for backend-specific behavior."""
+
+    supports_side_specific_modifiers: bool = False
+
+
 class HotkeyBackend(Protocol):
     """Interface implemented by all backend adapters."""
 
@@ -28,6 +35,9 @@ class HotkeyBackend(Protocol):
 
     def availability(self) -> BackendAvailability:
         """Report if backend is available on this system."""
+
+    def capabilities(self) -> BackendCapabilities:
+        """Return backend capability flags."""
 
     def start(self, on_hotkey: HotkeyCallback) -> bool:
         """Start backend listener state."""
@@ -56,6 +66,9 @@ class NullHotkeyBackend:
     def availability(self) -> BackendAvailability:
         return BackendAvailability(name=self.name, available=False, reason=self._reason)
 
+    def capabilities(self) -> BackendCapabilities:
+        return BackendCapabilities(supports_side_specific_modifiers=False)
+
     def start(self, on_hotkey: HotkeyCallback) -> bool:
         del on_hotkey
         return False
@@ -71,4 +84,3 @@ class NullHotkeyBackend:
     def unregister_hotkey(self, binding_id: str) -> bool:
         del binding_id
         return False
-

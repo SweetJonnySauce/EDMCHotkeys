@@ -106,26 +106,31 @@
 
 ## Backend Selection Strategy (Normative)
 - Linux session detection: use `XDG_SESSION_TYPE`, `WAYLAND_DISPLAY`, and `DISPLAY`.
-- Wayland: use XDG Desktop Portal GlobalShortcuts only. If unavailable, disable hotkeys and log the error.
-- X11: use in-process X11 grabs (`python-xlib`).
-- Windows: use `RegisterHotKey`; allow low-level hook fallback for non-modifier combos.
+- Wayland: use XDG Desktop Portal GlobalShortcuts only. Side-specific modifier bindings are unsupported and are auto-disabled with diagnostics.
+- X11: use a hybrid in-process backend (`python-xlib`):
+  - passive grabs for non-side-specific bindings.
+  - keymap polling + side-aware matching for side-specific bindings.
+- Windows: use `RegisterHotKey` for non-side-specific paths; side-specific matching is handled by a low-level hook path gated by `EDMC_HOTKEYS_ENABLE_WINDOWS_LOW_LEVEL_HOOK=1`.
 
 ## Linux X11 Backend Proposal
 - Use a pure-Python X11 client (likely `python-xlib`) to avoid compiled dependencies in packaged EDMC.
-- Register global hotkeys via passive grabs on the root window (one grab per hotkey).
+- Register non-side-specific global hotkeys via passive grabs on the root window.
 - Normalize modifier state by also grabbing with common lock modifiers (CapsLock/NumLock/ScrollLock) to avoid missing events.
-- Run the X11 event loop in a dedicated background thread, translate `KeyPress` events into normalized hotkey IDs, and dispatch via the Action Registry.
+- For side-specific bindings, poll X11 key state and apply left/right-aware matching with press-edge detection.
+- Run backend processing in a dedicated background thread and dispatch through the Action Registry.
 
 ## Bindings File Storage (Normative)
 - Single JSON blob stored in `<plugin_dir>/bindings.json`.
-- Schema (v1):
-  - `version`: `1`
+- Schema (v3):
+  - `version`: `3`
   - `active_profile`: string, default "Default"
   - `profiles`: map of profile name -> list of bindings
-  - binding fields: `id`, `hotkey`, `action_id`, `payload` (optional), `enabled` (bool)
+  - binding fields: `id`, `plugin`, `modifiers`, `key`, `action_id`, `payload` (optional), `enabled` (bool)
+  - canonical modifier tokens: `ctrl_l`, `ctrl_r`, `alt_l`, `alt_r`, `shift_l`, `shift_r`, `win_l`, `win_r`
+  - key token examples: `a`, `1`, `f10`, `esc`, `tab`, `enter`, `space`
 - Reserve profile switching action: `edmc_hotkeys.profile.set` with `profile_name` parameter.
 - Initialization:
-  - Missing file -> create v1 defaults and write `bindings.json`.
+  - Missing file -> create v3 defaults and write `bindings.json`.
   - No migration from EDMC config key storage is performed.
 - Other plugin settings:
   - Store non-binding settings in EDMC config using the `edmc_hotkeys.*` namespace.

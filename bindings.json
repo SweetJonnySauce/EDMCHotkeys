@@ -1,52 +1,80 @@
 {
-  "version": 1,
+  "version": 3,
   "active_profile": "Default",
   "profiles": {
     "Default": [
       {
         "id": "hotkeys_test_on",
-        "hotkey": "Ctrl+Shift+F1",
+        "plugin": "EDMC-Hotkeys-Test",
+        "modifiers": [
+          "ctrl_l",
+          "shift_l"
+        ],
+        "key": "f1",
         "action_id": "On",
-        "enabled": true
+        "enabled": false
       },
       {
         "id": "hotkeys_test_off",
-        "hotkey": "Ctrl+Shift+F2",
+        "plugin": "EDMC-Hotkeys-Test",
+        "modifiers": [
+          "ctrl_l",
+          "shift_l"
+        ],
+        "key": "f2",
         "action_id": "Off",
-        "enabled": true
+        "enabled": false
       },
       {
         "id": "hotkeys_test_toggle",
-        "hotkey": "Ctrl+Shift+F3",
+        "plugin": "EDMC-Hotkeys-Test",
+        "modifiers": [
+          "ctrl_r"
+        ],
+        "key": "m",
         "action_id": "Toggle",
-        "enabled": true
+        "enabled": false
       },
       {
         "id": "hotkeys_test_color_red",
-        "hotkey": "Ctrl+Shift+F4",
+        "plugin": "EDMC-Hotkeys-Test",
+        "modifiers": [
+          "ctrl_r"
+        ],
+        "key": "l",
         "action_id": "Color",
+        "enabled": false,
         "payload": {
           "color": "red"
-        },
-        "enabled": true
+        }
       },
       {
         "id": "hotkeys_test_color_lime",
-        "hotkey": "Ctrl+Shift+F5",
+        "plugin": "EDMC-Hotkeys-Test",
+        "modifiers": [
+          "ctrl_l",
+          "shift_l"
+        ],
+        "key": "f5",
         "action_id": "Color",
+        "enabled": false,
         "payload": {
           "color": "lime"
-        },
-        "enabled": true
+        }
       },
       {
         "id": "hotkeys_test_color_blue",
-        "hotkey": "Ctrl+Shift+F6",
+        "plugin": "EDMC-Hotkeys-Test",
+        "modifiers": [
+          "ctrl_l",
+          "shift_l"
+        ],
+        "key": "f6",
         "action_id": "Color",
+        "enabled": false,
         "payload": {
           "color": "deepskyblue"
-        },
-        "enabled": true
+        }
       }
     ]
   }

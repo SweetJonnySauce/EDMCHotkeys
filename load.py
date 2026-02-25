@@ -9,9 +9,10 @@ import sys
 from typing import Optional
 
 from edmc_hotkeys.bindings import BindingRecord, BindingsDocument, default_document
+from edmc_hotkeys.hotkey import canonical_hotkey_text
 from edmc_hotkeys.plugin import Binding, HotkeyPlugin
 from edmc_hotkeys.registry import Action
-from edmc_hotkeys.settings_state import SettingsState
+from edmc_hotkeys.settings_state import SettingsState, ValidationIssue
 from edmc_hotkeys.settings_ui import SettingsPanel, build_settings_panel
 from edmc_hotkeys.storage import BindingsStore
 
@@ -35,6 +36,7 @@ _settings_panel: Optional[SettingsPanel] = None
 _DISPATCH_PUMP_INTERVAL_MS = 50
 _dispatch_pump_owner: Optional[object] = None
 _dispatch_pump_after_id: Optional[object] = None
+_prefs_apply_guard_installed = False
 
 
 def plugin_start3(plugin_dir: str) -> str:
@@ -42,9 +44,16 @@ def plugin_start3(plugin_dir: str) -> str:
     global _plugin, _bindings_store, _bindings_document
     plugin_path = Path(plugin_dir)
     _plugin = HotkeyPlugin(plugin_dir=plugin_path, logger=logger)
+    _install_prefs_apply_guard()
 
     _bindings_store = BindingsStore(plugin_path / "bindings.json", logger=logger)
-    _bindings_document = _bindings_store.load_or_create()
+    loaded_document = _bindings_store.load_or_create()
+    _bindings_document, disable_reasons = _auto_disable_unsupported_bindings(loaded_document, _plugin)
+    if _bindings_document != loaded_document:
+        _bindings_store.save(_bindings_document)
+    for reason in disable_reasons:
+        logger.info(reason)
+
     bindings = _bindings_from_document(_bindings_document)
     logger.info("Loaded %d active bindings for profile '%s'", len(bindings), _bindings_document.active_profile)
     if not _plugin.replace_bindings(bindings):
@@ -89,15 +98,22 @@ def list_bindings(plugin_name: str) -> list[Binding]:
         return []
     target = normalized_name.casefold()
 
-    action_ids = {
-        action.id
-        for action in plugin.list_actions()
-        if action.plugin and action.plugin.casefold() == target
-    }
-    if not action_ids:
-        return []
-
-    return [binding for binding in plugin.list_bindings() if binding.action_id in action_ids]
+    matching = [
+        binding
+        for binding in plugin.list_bindings()
+        if binding.plugin and binding.plugin.casefold() == target
+    ]
+    return [
+        Binding(
+            id=binding.id,
+            hotkey=binding.pretty_hotkey,
+            action_id=binding.action_id,
+            payload=binding.payload,
+            enabled=binding.enabled,
+            plugin=binding.plugin,
+        )
+        for binding in matching
+    ]
 
 
 def get_action(action_id: str) -> Optional[Action]:
@@ -155,6 +171,7 @@ def plugin_prefs(parent: object, cmdr: str, is_beta: bool) -> Optional[object]:
     plugin = _require_started()
     if plugin is None:
         return None
+    _install_prefs_apply_guard()
     _ensure_dispatch_pump_running(parent)
     notebook_widgets = _resolve_notebook_widgets(parent)
     container = _create_notebook_container(parent, notebook_widgets)
@@ -191,25 +208,27 @@ def prefs_changed(cmdr: str, is_beta: bool) -> None:
         return
 
     current_document = _bindings_document or default_document()
-    state = SettingsState(
-        document=current_document,
-        action_options=SettingsState.from_document(
-            document=current_document,
-            actions=plugin.list_actions(),
-        ).action_options,
-        rows=_settings_panel.get_rows(),
+    state = _settings_state_from_panel(
+        plugin=plugin,
+        panel=_settings_panel,
+        current_document=current_document,
     )
     issues = state.validate()
     _settings_panel.set_validation_issues(issues)
     has_errors = any(issue.level == "error" for issue in issues)
     if has_errors:
+        _show_validation_error_dialog(issues)
         logger.warning("Bindings settings contain validation errors; changes were not saved")
         return
 
     new_document = state.to_document()
-    _bindings_store.save(new_document)
-    _bindings_document = new_document
-    if not plugin.replace_bindings(_bindings_from_document(new_document)):
+    normalized_document, disable_reasons = _auto_disable_unsupported_bindings(new_document, plugin)
+    for reason in disable_reasons:
+        logger.info(reason)
+
+    _bindings_store.save(normalized_document)
+    _bindings_document = normalized_document
+    if not plugin.replace_bindings(_bindings_from_document(normalized_document)):
         logger.warning("Some bindings failed to register after settings save")
 
 
@@ -233,13 +252,144 @@ def _bindings_from_document(document: BindingsDocument) -> list[Binding]:
 
 
 def _binding_from_record(record: BindingRecord) -> Binding:
+    hotkey = canonical_hotkey_text(modifiers=record.modifiers, key=record.key)
+    if hotkey is None:
+        hotkey = record.key
     return Binding(
         id=record.id,
-        hotkey=record.hotkey,
+        hotkey=hotkey,
         action_id=record.action_id,
         payload=record.payload,
         enabled=record.enabled,
+        plugin=record.plugin,
     )
+
+
+def _auto_disable_unsupported_bindings(
+    document: BindingsDocument,
+    plugin: HotkeyPlugin,
+) -> tuple[BindingsDocument, list[str]]:
+    capabilities = plugin.backend_capabilities()
+    if capabilities.supports_side_specific_modifiers:
+        return document, []
+
+    active_profile = document.active_profile
+    existing = document.profiles.get(active_profile, [])
+    updated: list[BindingRecord] = []
+    reasons: list[str] = []
+    for binding in existing:
+        if not binding.enabled or not binding.modifiers:
+            updated.append(binding)
+            continue
+        updated.append(
+            BindingRecord(
+                id=binding.id,
+                plugin=binding.plugin,
+                modifiers=binding.modifiers,
+                key=binding.key,
+                action_id=binding.action_id,
+                payload=binding.payload,
+                enabled=False,
+            )
+        )
+        pretty_hotkey = _binding_from_record(binding).pretty_hotkey
+        reasons.append(
+            "Auto-disabled binding '%s' (%s): backend '%s' does not support side-specific modifiers"
+            % (binding.id, pretty_hotkey, plugin.backend_name())
+        )
+
+    if not reasons:
+        return document, []
+    profiles = dict(document.profiles)
+    profiles[active_profile] = updated
+    return (
+        BindingsDocument(
+            version=document.version,
+            active_profile=document.active_profile,
+            profiles=profiles,
+        ),
+        reasons,
+    )
+
+
+def _show_validation_error_dialog(issues: list[ValidationIssue]) -> None:
+    errors = [issue for issue in issues if getattr(issue, "level", "") == "error"]
+    if not errors:
+        return
+    lines = [f"{issue.row_id}.{issue.field}: {issue.message}" for issue in errors[:8]]
+    message = "Bindings were not saved due to validation errors:\n\n" + "\n".join(lines)
+    try:
+        from tkinter import messagebox
+
+        parent = _settings_panel.frame if _settings_panel is not None else None
+        messagebox.showerror("EDMC-Hotkeys", message, parent=parent)
+    except Exception as exc:
+        logger.warning("Unable to show validation error dialog")
+        logger.debug("Validation error dialog failure", exc_info=exc)
+
+
+def _settings_state_from_panel(
+    *,
+    plugin: HotkeyPlugin,
+    panel: object,
+    current_document: BindingsDocument,
+) -> SettingsState:
+    return SettingsState(
+        document=current_document,
+        action_options=SettingsState.from_document(
+            document=current_document,
+            actions=plugin.list_actions(),
+        ).action_options,
+        rows=panel.get_rows(),
+    )
+
+
+def _install_prefs_apply_guard() -> None:
+    global _prefs_apply_guard_installed
+    if _prefs_apply_guard_installed:
+        return
+    try:
+        import prefs as edmc_prefs  # type: ignore
+    except Exception:
+        logger.debug("EDMC prefs module not available yet; apply guard not installed")
+        return
+
+    preferences_dialog = getattr(edmc_prefs, "PreferencesDialog", None)
+    if preferences_dialog is None or not hasattr(preferences_dialog, "apply"):
+        logger.debug("EDMC PreferencesDialog.apply is unavailable; apply guard not installed")
+        return
+
+    current_apply = preferences_dialog.apply
+    if getattr(current_apply, "_edmc_hotkeys_guard", False):
+        _prefs_apply_guard_installed = True
+        return
+
+    original_apply = current_apply
+
+    def _guarded_apply(dialog_self: object, *args, **kwargs):
+        plugin = _require_started()
+        panel = _settings_panel
+        if plugin is not None and panel is not None:
+            try:
+                current_document = _bindings_document or default_document()
+                state = _settings_state_from_panel(
+                    plugin=plugin,
+                    panel=panel,
+                    current_document=current_document,
+                )
+                issues = state.validate()
+                panel.set_validation_issues(issues)
+                if any(issue.level == "error" for issue in issues):
+                    _show_validation_error_dialog(issues)
+                    logger.warning("Bindings settings contain validation errors; keeping Settings dialog open")
+                    return None
+            except Exception:
+                logger.exception("EDMC-Hotkeys settings apply guard failed; falling back to EDMC apply")
+        return original_apply(dialog_self, *args, **kwargs)
+
+    setattr(_guarded_apply, "_edmc_hotkeys_guard", True)
+    preferences_dialog.apply = _guarded_apply
+    _prefs_apply_guard_installed = True
 
 
 def _ensure_dispatch_pump_running(owner: object | None = None) -> None:

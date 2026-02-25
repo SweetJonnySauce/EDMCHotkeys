@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+import sys
 import threading
+from types import SimpleNamespace
 
 import load as plugin_load
 from edmc_hotkeys.backends.base import BackendAvailability
 from edmc_hotkeys.plugin import Binding, HotkeyPlugin
 from edmc_hotkeys.registry import Action, ThreadedWorkerDispatchExecutor
+from edmc_hotkeys.settings_state import ValidationIssue
 
 
 class _FakeBackend:
@@ -75,9 +78,9 @@ class _FakeBindingsLookupPlugin:
 
     def list_bindings(self) -> list[Binding]:
         return [
-            Binding(id="b-on", hotkey="Ctrl+Shift+F1", action_id="test.on", enabled=True),
-            Binding(id="b-off", hotkey="Ctrl+Shift+F2", action_id="test.off", enabled=True),
-            Binding(id="b-other", hotkey="Ctrl+Shift+F3", action_id="other.action", enabled=True),
+            Binding(id="b-on", hotkey="Ctrl+Shift+F1", action_id="test.on", enabled=True, plugin="EDMC-Hotkeys-Test"),
+            Binding(id="b-off", hotkey="Ctrl+Shift+F2", action_id="test.off", enabled=True, plugin="EDMC-Hotkeys-Test"),
+            Binding(id="b-other", hotkey="Ctrl+Shift+F3", action_id="other.action", enabled=True, plugin="OtherPlugin"),
         ]
 
 
@@ -93,6 +96,26 @@ class _FakeAfterWidget:
 
     def after_cancel(self, after_id: str) -> None:
         self.cancelled_ids.append(after_id)
+
+
+class _FakePanel:
+    def __init__(self) -> None:
+        self.issues: list[ValidationIssue] = []
+
+    def get_rows(self):
+        return []
+
+    def set_validation_issues(self, issues: list[ValidationIssue]) -> None:
+        self.issues = issues
+
+
+class _FakePrefsDialog:
+    def __init__(self) -> None:
+        self.apply_calls = 0
+
+    def apply(self, *_args, **_kwargs):
+        self.apply_calls += 1
+        return "applied"
 
 
 def test_worker_dispatch_smoke_runs_callback_off_main_thread() -> None:
@@ -203,3 +226,50 @@ def test_dispatch_pump_scheduler_runs_and_can_be_stopped(monkeypatch) -> None:
 
     plugin_load._stop_dispatch_pump()
     assert fake_widget.cancelled_ids == ["after-2"]
+
+
+def test_prefs_apply_guard_blocks_apply_when_validation_has_errors(monkeypatch) -> None:
+    fake_dialog = _FakePrefsDialog()
+    fake_prefs_module = SimpleNamespace(PreferencesDialog=_FakePrefsDialog)
+    fake_panel = _FakePanel()
+    error_issues = [ValidationIssue(level="error", row_id="row1", field="hotkey", message="invalid hotkey")]
+    shown: list[list[ValidationIssue]] = []
+
+    monkeypatch.setattr(plugin_load, "_plugin", object())
+    monkeypatch.setattr(plugin_load, "_settings_panel", fake_panel)
+    monkeypatch.setattr(plugin_load, "_bindings_document", None)
+    monkeypatch.setattr(plugin_load, "_prefs_apply_guard_installed", False)
+    monkeypatch.setitem(sys.modules, "prefs", fake_prefs_module)
+    monkeypatch.setattr(plugin_load, "_require_started", lambda: object())
+    monkeypatch.setattr(plugin_load, "_settings_state_from_panel", lambda **_kwargs: SimpleNamespace(validate=lambda: error_issues))
+    monkeypatch.setattr(plugin_load, "_show_validation_error_dialog", lambda issues: shown.append(list(issues)))
+
+    plugin_load._install_prefs_apply_guard()
+    result = fake_dialog.apply()
+
+    assert getattr(fake_prefs_module.PreferencesDialog.apply, "_edmc_hotkeys_guard", False) is True
+    assert result is None
+    assert fake_dialog.apply_calls == 0
+    assert fake_panel.issues == error_issues
+    assert shown == [error_issues]
+
+
+def test_prefs_apply_guard_allows_apply_when_validation_passes(monkeypatch) -> None:
+    fake_dialog = _FakePrefsDialog()
+    fake_prefs_module = SimpleNamespace(PreferencesDialog=_FakePrefsDialog)
+    fake_panel = _FakePanel()
+
+    monkeypatch.setattr(plugin_load, "_plugin", object())
+    monkeypatch.setattr(plugin_load, "_settings_panel", fake_panel)
+    monkeypatch.setattr(plugin_load, "_bindings_document", None)
+    monkeypatch.setattr(plugin_load, "_prefs_apply_guard_installed", False)
+    monkeypatch.setitem(sys.modules, "prefs", fake_prefs_module)
+    monkeypatch.setattr(plugin_load, "_require_started", lambda: object())
+    monkeypatch.setattr(plugin_load, "_settings_state_from_panel", lambda **_kwargs: SimpleNamespace(validate=lambda: []))
+
+    plugin_load._install_prefs_apply_guard()
+    result = fake_dialog.apply()
+
+    assert result == "applied"
+    assert fake_dialog.apply_calls == 1
+    assert fake_panel.issues == []

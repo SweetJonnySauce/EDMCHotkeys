@@ -6,6 +6,7 @@ import logging
 from dataclasses import dataclass
 from typing import Optional
 
+from .hotkey import CANONICAL_MODIFIER_ORDER, normalize_key_token, pretty_hotkey_text
 from .settings_state import BindingRow, SettingsState, ValidationIssue
 
 try:
@@ -31,6 +32,18 @@ _MODIFIER_KEYSYMS = {
     "Super_R",
     "Meta_L",
     "Meta_R",
+}
+_MODIFIER_KEYSYM_TO_TOKEN = {
+    "Control_L": ("ctrl", "ctrl_l"),
+    "Control_R": ("ctrl", "ctrl_r"),
+    "Alt_L": ("alt", "alt_l"),
+    "Alt_R": ("alt", "alt_r"),
+    "Shift_L": ("shift", "shift_l"),
+    "Shift_R": ("shift", "shift_r"),
+    "Super_L": ("win", "win_l"),
+    "Super_R": ("win", "win_r"),
+    "Meta_L": ("win", "win_l"),
+    "Meta_R": ("win", "win_r"),
 }
 _SHIFTED_SYMBOL_TO_BASE_KEY = {
     "!": "1",
@@ -86,6 +99,7 @@ class SettingsPanel:
         self._notebook_widgets = notebook_widgets
         self.frame = self._widget_class("Frame", ttk.Frame)(parent)
         self._row_widgets: list[_RowWidgets] = []
+        self._active_modifier_tokens: dict[str, dict[str, str]] = {}
 
         self._action_values = [option.action_id for option in state.action_options]
         self._plugin_values = sorted({option.plugin for option in state.action_options if option.plugin})
@@ -123,7 +137,9 @@ class SettingsPanel:
             padx=2,
             sticky="ew",
         )
-        hotkey_entry.bind("<KeyPress>", lambda event, var=hotkey_var: self._capture_hotkey(event, var))
+        hotkey_entry.bind("<KeyPress>", lambda event, var=hotkey_var, widget=hotkey_entry: self._capture_hotkey(event, var, widget))
+        hotkey_entry.bind("<KeyRelease>", lambda event, widget=hotkey_entry: self._release_modifier(event, widget))
+        hotkey_entry.bind("<FocusOut>", lambda _event, widget=hotkey_entry: self._clear_modifiers(widget))
         self._widget_class("Combobox", ttk.Combobox)(
             row_frame,
             textvariable=plugin_var,
@@ -285,15 +301,26 @@ class SettingsPanel:
         for child in widget.winfo_children():
             self._bind_mousewheel_recursive(child)
 
-    def _capture_hotkey(self, event: object, hotkey_var: object) -> str | None:
-        captured = hotkey_from_event(event)
+    def _capture_hotkey(self, event: object, hotkey_var: object, widget: object) -> str | None:
+        keysym = str(getattr(event, "keysym", "") or "")
+        if _track_modifier_press(keysym, self._active_modifier_tokens, widget):
+            return "break"
+        active_tokens = tuple(self._active_modifier_tokens.get(str(widget), {}).values())
+        captured = hotkey_from_event(event, active_modifiers=active_tokens)
         if captured is None:
-            keysym = getattr(event, "keysym", "")
             if keysym in _MODIFIER_KEYSYMS:
                 return "break"
             return None
         hotkey_var.set(captured)
         return "break"
+
+    def _release_modifier(self, event: object, widget: object) -> str | None:
+        keysym = str(getattr(event, "keysym", "") or "")
+        _track_modifier_release(keysym, self._active_modifier_tokens, widget)
+        return None
+
+    def _clear_modifiers(self, widget: object) -> None:
+        self._active_modifier_tokens.pop(str(widget), None)
 
     def _on_mousewheel(self, event: object) -> str | None:
         if tk is None:
@@ -320,16 +347,16 @@ class SettingsPanel:
         return getattr(self._notebook_widgets, name, fallback)
 
 
-def hotkey_from_event(event: object) -> str | None:
+def hotkey_from_event(event: object, *, active_modifiers: tuple[str, ...] = ()) -> str | None:
     """Convert a Tk key event into a canonical hotkey string."""
     state = int(getattr(event, "state", 0))
     keysym = str(getattr(event, "keysym", "") or "")
     char = str(getattr(event, "char", "") or "")
-    return hotkey_from_parts(state=state, keysym=keysym, char=char)
+    return hotkey_from_parts(state=state, keysym=keysym, char=char, active_modifiers=active_modifiers)
 
 
-def hotkey_from_parts(*, state: int, keysym: str, char: str) -> str | None:
-    """Convert key event parts into `Ctrl+Shift+X` style text."""
+def hotkey_from_parts(*, state: int, keysym: str, char: str, active_modifiers: tuple[str, ...] = ()) -> str | None:
+    """Convert key event parts into pretty side-specific hotkey text."""
     if keysym in _MODIFIER_KEYSYMS:
         return None
 
@@ -337,16 +364,18 @@ def hotkey_from_parts(*, state: int, keysym: str, char: str) -> str | None:
     if key is None:
         return None
 
-    modifiers: list[str] = []
+    grouped = _group_modifier_tokens(active_modifiers)
     if state & _CONTROL_MASK:
-        modifiers.append("Ctrl")
+        grouped.setdefault("ctrl", "ctrl_l")
     if state & _ALT_MASK:
-        modifiers.append("Alt")
+        grouped.setdefault("alt", "alt_l")
     if state & _SHIFT_MASK:
-        modifiers.append("Shift")
+        grouped.setdefault("shift", "shift_l")
     if state & _SUPER_MASK:
-        modifiers.append("Super")
-    return "+".join(modifiers + [key]) if modifiers else key
+        grouped.setdefault("win", "win_l")
+
+    ordered = tuple(token for token in CANONICAL_MODIFIER_ORDER if token in grouped.values())
+    return pretty_hotkey_text(modifiers=ordered, key=key)
 
 
 def _normalize_hotkey_key(*, keysym: str, char: str) -> str | None:
@@ -356,31 +385,74 @@ def _normalize_hotkey_key(*, keysym: str, char: str) -> str | None:
 
     shifted_from_char = _SHIFTED_SYMBOL_TO_BASE_KEY.get(char)
     if shifted_from_char is not None:
-        return shifted_from_char
+        return normalize_key_token(shifted_from_char)
 
     shifted_from_keysym = _SHIFTED_SYMBOL_TO_BASE_KEY.get(normalized_keysym.lower())
     if shifted_from_keysym is not None:
-        return shifted_from_keysym
+        return normalize_key_token(shifted_from_keysym)
 
     if len(char) == 1 and char.isalnum():
-        return char.upper()
+        return normalize_key_token(char)
     if len(normalized_keysym) == 1 and normalized_keysym.isalnum():
-        return normalized_keysym.upper()
+        return normalize_key_token(normalized_keysym)
 
     upper = normalized_keysym.upper()
     if upper.startswith("F") and upper[1:].isdigit():
         fn_number = int(upper[1:])
         if 1 <= fn_number <= 24:
-            return upper
+            return normalize_key_token(upper)
 
     special = {
-        "SPACE": "Space",
-        "TAB": "Tab",
-        "RETURN": "Enter",
-        "KP_ENTER": "Enter",
-        "ESCAPE": "Esc",
+        "SPACE": "space",
+        "TAB": "tab",
+        "RETURN": "enter",
+        "KP_ENTER": "enter",
+        "ESCAPE": "esc",
     }
-    return special.get(upper)
+    token = special.get(upper)
+    if token is None:
+        return None
+    return normalize_key_token(token)
+
+
+def _track_modifier_press(keysym: str, store: dict[str, dict[str, str]], widget: object) -> bool:
+    token_info = _MODIFIER_KEYSYM_TO_TOKEN.get(keysym)
+    if token_info is None:
+        return False
+    group, token = token_info
+    widget_key = str(widget)
+    by_group = store.setdefault(widget_key, {})
+    by_group[group] = token
+    return True
+
+
+def _track_modifier_release(keysym: str, store: dict[str, dict[str, str]], widget: object) -> bool:
+    token_info = _MODIFIER_KEYSYM_TO_TOKEN.get(keysym)
+    if token_info is None:
+        return False
+    group, _token = token_info
+    widget_key = str(widget)
+    by_group = store.get(widget_key)
+    if by_group is None:
+        return False
+    by_group.pop(group, None)
+    if not by_group:
+        store.pop(widget_key, None)
+    return True
+
+
+def _group_modifier_tokens(tokens: tuple[str, ...]) -> dict[str, str]:
+    grouped: dict[str, str] = {}
+    for token in tokens:
+        if token.startswith("ctrl_"):
+            grouped["ctrl"] = token
+        elif token.startswith("alt_"):
+            grouped["alt"] = token
+        elif token.startswith("shift_"):
+            grouped["shift"] = token
+        elif token.startswith("win_"):
+            grouped["win"] = token
+    return grouped
 
 
 def build_settings_panel(

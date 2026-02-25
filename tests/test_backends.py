@@ -5,8 +5,14 @@ import logging
 from edmc_hotkeys.backends.base import BackendAvailability, NullHotkeyBackend
 from edmc_hotkeys.backends.selector import detect_linux_session, select_backend
 from edmc_hotkeys.backends.wayland import WaylandPortalBackend
-from edmc_hotkeys.backends.windows import MOD_CONTROL, MOD_SHIFT, WindowsHotkeyBackend
-from edmc_hotkeys.backends.x11 import X11HotkeyBackend
+from edmc_hotkeys.backends.windows import WindowsHotkeyBackend
+from edmc_hotkeys.backends.x11 import (
+    X11HotkeyBackend,
+    _X11Registration,
+    _event_modifiers_from_pressed,
+    _registration_grab_modifiers,
+    _registration_matches_event,
+)
 
 
 class _FakeBackend:
@@ -203,11 +209,11 @@ def test_windows_backend_registers_modifier_hotkey_with_registerhotkey() -> None
         fallback=fake_fallback,
     )
     assert backend.start(lambda _binding_id: None) is True
-    assert backend.register_hotkey("binding-1", "Ctrl+Shift+O") is True
+    assert backend.register_hotkey("binding-1", "F5") is True
     assert fake_user32.register_calls
     _, modifiers, virtual_key = fake_user32.register_calls[0]
-    assert modifiers == (MOD_CONTROL | MOD_SHIFT)
-    assert virtual_key == ord("O")
+    assert modifiers == 0
+    assert virtual_key == 0x74
     assert backend.unregister_hotkey("binding-1") is True
 
 
@@ -222,8 +228,8 @@ def test_windows_backend_routes_no_modifier_hotkey_to_fallback() -> None:
         fallback=fake_fallback,
     )
     assert backend.start(lambda _binding_id: None) is True
-    assert backend.register_hotkey("binding-2", "F5") is True
-    assert fake_fallback.registered == [("binding-2", "F5")]
+    assert backend.register_hotkey("binding-2", "LCtrl+LShift+O") is True
+    assert fake_fallback.registered == [("binding-2", "LCtrl+LShift+O")]
     assert fake_user32.register_calls == []
     assert backend.unregister_hotkey("binding-2") is True
     assert fake_fallback.unregistered == ["binding-2"]
@@ -238,8 +244,8 @@ def test_x11_backend_uses_client_when_available() -> None:
     )
     assert backend.availability().available is True
     assert backend.start(lambda _binding_id: None) is True
-    assert backend.register_hotkey("binding-x11", "Ctrl+Shift+O") is True
-    assert client.registered == [("binding-x11", "Ctrl+Shift+O")]
+    assert backend.register_hotkey("binding-x11", "LCtrl+LShift+O") is True
+    assert client.registered == [("binding-x11", "LCtrl+LShift+O")]
     assert backend.unregister_hotkey("binding-x11") is True
     assert client.unregistered == ["binding-x11"]
 
@@ -253,8 +259,209 @@ def test_wayland_backend_uses_portal_client_when_available() -> None:
     )
     assert backend.availability().available is True
     assert backend.start(lambda _binding_id: None) is True
-    assert backend.register_hotkey("binding-wl", "Ctrl+Alt+M") is True
-    assert portal_client.registered == [("binding-wl", "Ctrl+Alt+M")]
+    assert backend.register_hotkey("binding-wl", "LCtrl+LAlt+M") is True
+    assert portal_client.registered == [("binding-wl", "LCtrl+LAlt+M")]
     assert backend.unregister_hotkey("binding-wl") is True
     assert portal_client.unregistered == ["binding-wl"]
 
+
+def test_x11_side_specific_registration_match_is_order_insensitive() -> None:
+    registration = _X11Registration(
+        keycode=67,
+        modifiers_mask=0x41,  # ShiftMask|Mod4Mask
+        required_modifiers=("shift_l", "win_l"),
+        grab_modifiers=(0x41, 0x01, 0x40),
+    )
+    side_keycodes = {
+        "shift_l": {50},
+        "shift_r": {62},
+        "win_l": {133},
+        "win_r": {134},
+        "ctrl_l": {37},
+        "ctrl_r": {105},
+        "alt_l": {64},
+        "alt_r": {108},
+    }
+
+    # Simulate both left-side modifiers currently down.
+    pressed = {50, 133}
+
+    # Allow event-state variance; correct side keys should still match.
+    assert _registration_matches_event(
+        registration=registration,
+        event_modifiers=0x40,
+        pressed_keycodes=pressed,
+        side_keycodes=side_keycodes,
+    )
+    assert _registration_matches_event(
+        registration=registration,
+        event_modifiers=0x01,
+        pressed_keycodes=pressed,
+        side_keycodes=side_keycodes,
+    )
+
+
+def test_x11_side_specific_registration_rejects_wrong_side_modifier() -> None:
+    registration = _X11Registration(
+        keycode=67,
+        modifiers_mask=0x41,
+        required_modifiers=("shift_l", "win_l"),
+        grab_modifiers=(0x41, 0x01, 0x40),
+    )
+    side_keycodes = {
+        "shift_l": {50},
+        "shift_r": {62},
+        "win_l": {133},
+        "win_r": {134},
+        "ctrl_l": {37},
+        "ctrl_r": {105},
+        "alt_l": {64},
+        "alt_r": {108},
+    }
+
+    # Right shift + left win should not satisfy left-shift requirement.
+    pressed = {62, 133}
+    assert not _registration_matches_event(
+        registration=registration,
+        event_modifiers=0x41,
+        pressed_keycodes=pressed,
+        side_keycodes=side_keycodes,
+    )
+
+
+def test_x11_right_side_registration_matches_when_right_modifiers_pressed() -> None:
+    registration = _X11Registration(
+        keycode=68,
+        modifiers_mask=0x41,
+        required_modifiers=("shift_r", "win_r"),
+        grab_modifiers=(0x41, 0x01, 0x40),
+    )
+    side_keycodes = {
+        "shift_l": {50},
+        "shift_r": {62},
+        "win_l": {133},
+        "win_r": {134},
+        "ctrl_l": {37},
+        "ctrl_r": {105},
+        "alt_l": {64},
+        "alt_r": {108},
+    }
+
+    pressed = {62, 134}
+    assert _registration_matches_event(
+        registration=registration,
+        event_modifiers=0x41,
+        pressed_keycodes=pressed,
+        side_keycodes=side_keycodes,
+    )
+
+
+def test_x11_right_side_registration_rejects_left_modifier() -> None:
+    registration = _X11Registration(
+        keycode=68,
+        modifiers_mask=0x41,
+        required_modifiers=("shift_r", "win_r"),
+        grab_modifiers=(0x41, 0x01, 0x40),
+    )
+    side_keycodes = {
+        "shift_l": {50},
+        "shift_r": {62},
+        "win_l": {133},
+        "win_r": {134},
+        "ctrl_l": {37},
+        "ctrl_r": {105},
+        "alt_l": {64},
+        "alt_r": {108},
+    }
+
+    pressed = {50, 134}
+    assert not _registration_matches_event(
+        registration=registration,
+        event_modifiers=0x41,
+        pressed_keycodes=pressed,
+        side_keycodes=side_keycodes,
+    )
+
+
+def test_x11_side_specific_registration_allows_state_fallback_when_keymap_misses_required_side() -> None:
+    registration = _X11Registration(
+        keycode=67,
+        modifiers_mask=0x41,
+        required_modifiers=("shift_l", "win_l"),
+        grab_modifiers=(0x41, 0x01, 0x40),
+    )
+    side_keycodes = {
+        "shift_l": {50},
+        "shift_r": {62},
+        "win_l": {133},
+        "win_r": {134},
+        "ctrl_l": {37},
+        "ctrl_r": {105},
+        "alt_l": {64},
+        "alt_r": {108},
+    }
+
+    # Simulate query_keymap missing Shift_L while event.state still carries Shift+Win.
+    pressed = {133}
+    assert _registration_matches_event(
+        registration=registration,
+        event_modifiers=0x41,
+        pressed_keycodes=pressed,
+        side_keycodes=side_keycodes,
+    )
+
+
+def test_x11_non_side_specific_registration_keeps_strict_mask_match() -> None:
+    registration = _X11Registration(
+        keycode=67,
+        modifiers_mask=0x00,
+        required_modifiers=(),
+        grab_modifiers=(0x00,),
+    )
+    assert _registration_matches_event(
+        registration=registration,
+        event_modifiers=0x00,
+        pressed_keycodes=set(),
+        side_keycodes={},
+    )
+    assert not _registration_matches_event(
+        registration=registration,
+        event_modifiers=0x01,
+        pressed_keycodes=set(),
+        side_keycodes={},
+    )
+
+
+def test_x11_side_specific_grab_modifiers_include_single_group_fallbacks() -> None:
+    modifiers = _registration_grab_modifiers(
+        modifiers_mask=0x41,
+        required_modifiers=("shift_l", "win_l"),
+    )
+    assert modifiers == (0x41, 0x01, 0x40)
+
+
+def test_x11_non_side_specific_grab_modifiers_stay_exact() -> None:
+    modifiers = _registration_grab_modifiers(
+        modifiers_mask=0x04,
+        required_modifiers=(),
+    )
+    assert modifiers == (0x04,)
+
+
+def test_x11_event_modifiers_from_pressed_maps_left_and_right_groups() -> None:
+    side_keycodes = {
+        "ctrl_l": {37},
+        "ctrl_r": {105},
+        "alt_l": {64},
+        "alt_r": {108},
+        "shift_l": {50},
+        "shift_r": {62},
+        "win_l": {133},
+        "win_r": {134},
+    }
+    pressed = {37, 62, 133}
+    event_modifiers = _event_modifiers_from_pressed(
+        pressed_keycodes=pressed,
+        side_keycodes=side_keycodes,
+    )
+    assert event_modifiers == (0x04 | 0x01 | 0x40)

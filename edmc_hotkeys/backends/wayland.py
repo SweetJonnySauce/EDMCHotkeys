@@ -6,7 +6,7 @@ import logging
 import sys
 from typing import Optional, Protocol
 
-from .base import BackendAvailability, HotkeyBackend, HotkeyCallback
+from .base import BackendAvailability, BackendCapabilities, HotkeyBackend, HotkeyCallback
 
 
 class PortalClient(Protocol):
@@ -88,6 +88,9 @@ class WaylandPortalBackend(HotkeyBackend):
             return BackendAvailability(name=self.name, available=True)
         return BackendAvailability(name=self.name, available=False, reason=availability.reason)
 
+    def capabilities(self) -> BackendCapabilities:
+        return BackendCapabilities(supports_side_specific_modifiers=False)
+
     def start(self, on_hotkey: HotkeyCallback) -> bool:
         if not self.availability().available:
             return False
@@ -103,4 +106,3 @@ class WaylandPortalBackend(HotkeyBackend):
 
     def unregister_hotkey(self, binding_id: str) -> bool:
         return self._portal_client.unregister_hotkey(binding_id)
-

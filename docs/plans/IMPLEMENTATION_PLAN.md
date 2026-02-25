@@ -103,35 +103,86 @@ if something is not clear, ask clarifying questions
   - `make check` (if available)
   - `make test` (if available)
 
-## Phase 7 — Side-Specific Modifiers (Status: Pending)
+## Phase 7 — Side-Specific Modifiers (Status: Completed)
 | Stage | Description | Status |
 | --- | --- | --- |
-| 7.1 | Define canonical hotkey tokens for left/right modifiers (`CtrlL`, `CtrlR`, `AltL`, `AltR`, `ShiftL`, `ShiftR`) and compatibility rules with existing generic tokens | Pending |
-| 7.2 | Update settings capture/editor to record and display side-specific modifiers while preserving existing generic hotkeys | Pending |
-| 7.3 | Extend parser + binding model to represent side-specific modifiers without breaking existing `bindings.json` values | Pending |
-| 7.4 | Implement backend capability matrix and behavior: enforce side-specific modifiers only where backend supports it; fail fast with explicit warning where unsupported | Pending |
-| 7.5 | Add optional low-level backend paths required for true side-specific matching (Windows/X11), with safe fallback to current behavior when unavailable | Pending |
-| 7.6 | Add tests: parser, settings capture, backend registration/matching, and unsupported-capability warnings | Pending |
+| 7.1 | Define canonical token format + binding schema update for side-specific modifiers (`ctrl_l`, `ctrl_r`, `alt_l`, `alt_r`, `shift_l`, `shift_r`, `win_l`, `win_r`) | Completed |
+| 7.2 | Update settings capture/editor to emit side-aware tokens from key events and allow manual editing of canonical side-specific forms | Completed |
+| 7.3 | Extend parser + binding model to accept canonical side-specific tokens only and emit one canonical representation to runtime | Completed |
+| 7.4 | Implement capability matrix and selection logic so side-specific bindings route to side-aware backend paths only | Completed |
+| 7.5 | Implement side-aware backend paths (Windows low-level hook + X11 side-aware matcher), with explicit unsupported handling on Wayland | Completed |
+| 7.6 | Add tests + docs for schema, parser, UI capture, backend matching, and unsupported warnings; verify end-to-end in EDMC | Completed |
 
 ### Phase 7 Execution Plan (This Iteration)
-- Touch points:
-  - `edmc_hotkeys/settings_ui.py` for side-aware capture tokens and field editing.
-  - `edmc_hotkeys/backends/hotkey_parser.py` for canonical parsing of left/right modifiers.
-  - Backend adapters under `edmc_hotkeys/backends/` for capability reporting and side-specific matching paths.
-  - `docs/requirements-architecture-notes.md` for normative token/capability documentation.
+- Current baseline from implemented work:
+  - Settings hotkey field already captures key combinations from focused entry (`edmc_hotkeys/settings_ui.py`) and replaces the current value on keypress.
+  - Current capture/parser path normalizes to non-side-specific modifier labels (`Ctrl`/`Alt`/`Shift`/`Super`) and does not preserve left/right modifier side.
+  - `bindings.json` schema is still v1 string-based hotkeys (`BindingRecord.hotkey: str`) with free-form payload JSON in prefs.
+  - Action callbacks can receive `hotkey` when declared, and external plugins can query assigned bindings with `list_bindings(plugin_name)` (`load.py`, `edmc_hotkeys/registry.py`).
+  - These completed pieces are prerequisites for Phase 7 and should be extended, not replaced.
+- Stage 7.1 details (format + schema):
+  - Bump bindings schema to v3 and store canonical hotkey data as structured fields instead of a single free-form hotkey string.
+  - Development mode allows breaking format changes and direct rewrite of existing `bindings.json`; no migration/back-compat required.
+  - Canonical hotkey model:
+    - `modifiers`: ordered list from `{ctrl_l, ctrl_r, alt_l, alt_r, shift_l, shift_r, win_l, win_r}`
+    - `key`: normalized key token (`a`, `f10`, `1`, `esc`, etc.)
+    - `plugin`: explicit owner plugin name for each binding row.
+  - Keep payload model unchanged (`payload` remains free-form JSON object).
+- Stage 7.2 details (settings capture/editor):
+  - Extend capture logic to resolve side-specific modifier tokens from Tk keysyms (`Control_L`, `Control_R`, `Shift_L`, `Shift_R`, `Alt_L`, `Alt_R`, `Super_L`, `Super_R`).
+  - Display a pretty hotkey label in prefs/editor (for example `LCtrl+RShift+A`) while persisting canonical tokens in schema fields.
+  - Keep hotkey field keyboard-driven (press-to-set behavior), with validation for malformed canonical token sets.
+  - On validation failure during save, show a user-facing error dialog and do not persist changes.
+- Stage 7.3 details (parser + binding model):
+  - Refactor parser/model to accept canonical side-specific tokens as the only source format for runtime matching.
+  - Remove compatibility obligations for pre-Phase-7 token forms in this phase.
+  - Ensure runtime `Binding` instances preserve canonical modifier-side intent through registration/invocation paths.
+  - Render hotkey strings exposed to callbacks/public APIs in pretty form for consistency with prefs.
+- Stage 7.4 details (capability matrix + routing):
+  - Add backend capability flags (for example `supports_side_specific_modifiers`) and per-binding requirement checks.
+  - Route side-specific bindings only to side-aware backend paths.
+  - If capability is missing, auto-disable only affected bindings, continue loading compatible bindings, and present explicit diagnostics.
+- Stage 7.5 details (backend implementation tracks):
+  - Windows:
+    - keep `RegisterHotKey` for bindings that do not require left/right modifier differentiation.
+    - add a low-level keyboard hook path for side-specific modifier matching, gated behind a feature flag for initial rollout.
+    - feature flag implementation detail: code-local env flag `EDMC_HOTKEYS_ENABLE_WINDOWS_LOW_LEVEL_HOOK` (not EDMC config, temporary during development).
+  - X11:
+    - extend matching beyond aggregate modifier masks to side-aware key state/keycode handling.
+  - Wayland:
+    - auto-disable side-specific bindings as unsupported unless a concrete portal/API path exists; log actionable diagnostics.
+- Stage 7.6 details (tests + docs + QA):
+  - Unit tests:
+    - v3 schema serialization/deserialization and canonical token validation.
+    - side-specific parser normalization and invalid-token rejection.
+    - settings capture from left/right keysyms and canonical display output.
+    - capability enforcement and unsupported-binding warnings.
+  - Integration tests:
+    - mixed side-specific/non-side-specific registration and invocation.
+    - callback `hotkey` kwarg and `list_bindings(plugin_name)` expose canonical side-specific hotkey values.
+  - Docs:
+    - update `docs/requirements-architecture-notes.md` with canonical token + v3 schema spec.
+    - update `docs/register-action-with-edmc-hotkeys.md` with side-specific examples and expected `hotkey` format.
 - Key constraints discovered:
   - Current Windows path (`RegisterHotKey`) does not differentiate left/right modifiers.
   - Current X11 path (modifier masks only) does not differentiate left/right modifiers.
   - Wayland portal path currently has no side-specific contract in this plugin.
   - Therefore, true side-specific behavior requires low-level event hooks or backend-specific alternative APIs.
-- Expected unchanged behavior during staged rollout:
-  - Existing generic hotkeys (for example `Ctrl+Shift+1`) remain valid and unchanged.
-  - No breaking schema migration in `bindings.json`; side-specific tokens are additive.
-  - Unsupported side-specific hotkeys must not crash plugin startup; they should be rejected with clear log messages.
+- Development-mode assumptions for this phase:
+  - Existing assigned hotkeys may be changed as needed.
+  - `bindings.json` schema/format may be changed if that simplifies or improves side-specific support.
+  - Backward compatibility/migration is not required for this development phase.
+  - Temporary rollout flags may be code-local/env-driven and removed once side-specific behavior is fully validated.
+- Acceptance criteria for Phase 7 completion:
+  - Side-specific bindings can be entered in prefs and persisted.
+  - Invalid canonical hotkey edits surface a blocking error dialog in prefs.
+  - Side-specific matching works on implemented backend paths (Windows/X11).
+  - Unsupported side-specific bindings are auto-disabled with clear diagnostics.
+  - Canonical bindings (including entries with no modifiers) remain functional.
 - Tests to run:
   - `source .venv/bin/activate && python -m pytest`
   - `source .venv/bin/activate && python -m compileall load.py edmc_hotkeys tests`
-  - Targeted backend tests for capability warnings and side-specific matching behavior
+  - Targeted backend tests for side-aware matching and unsupported-path warnings
 
 # Implementation Results
 
@@ -214,3 +265,32 @@ if something is not clear, ask clarifying questions
   - `source .venv/bin/activate && python -m compileall load.py edmc_hotkeys tests` passed.
   - `make check` failed (`No rule to make target 'check'`).
   - `make test` failed (`No rule to make target 'test'`).
+
+## Phase 7 — Side-Specific Modifiers
+- Implemented canonical hotkey model and schema v3:
+  - added canonical hotkey helpers in `edmc_hotkeys/hotkey.py`.
+  - migrated bindings model to `plugin` + `modifiers` + `key` fields (`edmc_hotkeys/bindings.py`).
+  - updated persistence and settings conversion paths for v3 bindings.
+- Implemented side-aware settings capture/editor behavior:
+  - hotkey field capture now tracks left/right modifier keys from Tk events.
+  - prefs display uses pretty hotkey text (for example `LCtrl+RShift+A`) while runtime/storage use canonical tokens.
+  - invalid hotkey edits block save and trigger a user-facing error dialog in prefs.
+- Implemented canonical parser/runtime/backend routing updates:
+  - parser now accepts canonical/pretty side-specific forms and rejects generic tokens (`Ctrl`, `Alt`, `Shift` without side).
+  - `hotkey` callback kwarg and `list_bindings(plugin_name)` expose pretty hotkey text.
+  - `list_bindings(plugin_name)` filtering now uses persisted binding `plugin` ownership.
+- Implemented capability matrix and unsupported handling:
+  - added backend capability flags (`supports_side_specific_modifiers`).
+  - unsupported side-specific bindings are auto-disabled in active profile, persisted to `bindings.json`, and logged at `INFO` with reason.
+- Implemented backend updates:
+  - X11 matching now validates side-specific modifier state via keymap checks.
+  - X11 side-specific bindings now use keymap polling + press-edge detection instead of relying on passive-grab delivery, eliminating observed modifier-order sensitivity and working for both left and right modifier variants.
+  - Wayland reports side-specific as unsupported for capability routing.
+  - Windows low-level hook path added and gated by temporary env flag `EDMC_HOTKEYS_ENABLE_WINDOWS_LOW_LEVEL_HOOK`.
+- Added/updated tests and docs:
+  - added `tests/test_phase7_side_specific.py`.
+  - updated storage/settings/backend/UI tests for v3 schema and side-specific behavior.
+  - updated docs: `docs/requirements-architecture-notes.md`, `docs/register-action-with-edmc-hotkeys.md`.
+- Verification:
+  - `source .venv/bin/activate && python -m pytest` passed (`57 passed`).
+  - `source .venv/bin/activate && python -m compileall load.py edmc_hotkeys tests` passed.

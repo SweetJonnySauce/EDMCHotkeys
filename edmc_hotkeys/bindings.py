@@ -5,8 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from .hotkey import canonicalize_modifiers, normalize_key_token
 
-SCHEMA_VERSION = 1
+
+SCHEMA_VERSION = 3
 DEFAULT_PROFILE = "Default"
 
 
@@ -15,7 +17,9 @@ class BindingRecord:
     """Serializable binding record for bindings.json."""
 
     id: str
-    hotkey: str
+    plugin: str
+    modifiers: tuple[str, ...]
+    key: str
     action_id: str
     payload: dict[str, Any] | None = None
     enabled: bool = True
@@ -75,21 +79,37 @@ def binding_record_from_dict(data: Any) -> BindingRecord | None:
     if not isinstance(data, dict):
         return None
     binding_id = _safe_string(data.get("id"))
-    hotkey = _safe_string(data.get("hotkey"))
+    plugin = _safe_string(data.get("plugin"))
+    raw_modifiers = data.get("modifiers")
+    modifiers: tuple[str, ...] | None = None
+    if isinstance(raw_modifiers, list):
+        values = [value for value in raw_modifiers if isinstance(value, str)]
+        modifiers = canonicalize_modifiers(values)
+    key = normalize_key_token(_safe_string(data.get("key")))
     action_id = _safe_string(data.get("action_id"))
     payload = data.get("payload")
     if payload is not None and not isinstance(payload, dict):
         payload = None
     enabled = bool(data.get("enabled", True))
-    if not binding_id or not hotkey or not action_id:
+    if not binding_id or not plugin or modifiers is None or key is None or not action_id:
         return None
-    return BindingRecord(id=binding_id, hotkey=hotkey, action_id=action_id, payload=payload, enabled=enabled)
+    return BindingRecord(
+        id=binding_id,
+        plugin=plugin,
+        modifiers=modifiers,
+        key=key,
+        action_id=action_id,
+        payload=payload,
+        enabled=enabled,
+    )
 
 
 def binding_record_to_dict(binding: BindingRecord) -> dict[str, Any]:
     output: dict[str, Any] = {
         "id": binding.id,
-        "hotkey": binding.hotkey,
+        "plugin": binding.plugin,
+        "modifiers": list(binding.modifiers),
+        "key": binding.key,
         "action_id": binding.action_id,
         "enabled": binding.enabled,
     }
@@ -110,4 +130,3 @@ def _safe_profile_name(value: Any, *, default: str) -> str:
         if normalized:
             return normalized
     return default
-
