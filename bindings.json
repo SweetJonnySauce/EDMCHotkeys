@@ -6,25 +6,25 @@
       {
         "id": "hotkeys_test_on",
         "hotkey": "Ctrl+Shift+F1",
-        "action_id": "edmc_hotkeys_test.on",
+        "action_id": "On",
         "enabled": true
       },
       {
         "id": "hotkeys_test_off",
         "hotkey": "Ctrl+Shift+F2",
-        "action_id": "edmc_hotkeys_test.off",
+        "action_id": "Off",
         "enabled": true
       },
       {
         "id": "hotkeys_test_toggle",
         "hotkey": "Ctrl+Shift+F3",
-        "action_id": "edmc_hotkeys_test.toggle",
+        "action_id": "Toggle",
         "enabled": true
       },
       {
         "id": "hotkeys_test_color_red",
         "hotkey": "Ctrl+Shift+F4",
-        "action_id": "edmc_hotkeys_test.color",
+        "action_id": "Color",
         "payload": {
           "color": "red"
         },
@@ -33,7 +33,7 @@
       {
         "id": "hotkeys_test_color_lime",
         "hotkey": "Ctrl+Shift+F5",
-        "action_id": "edmc_hotkeys_test.color",
+        "action_id": "Color",
         "payload": {
           "color": "lime"
         },
@@ -42,7 +42,7 @@
       {
         "id": "hotkeys_test_color_blue",
         "hotkey": "Ctrl+Shift+F6",
-        "action_id": "edmc_hotkeys_test.color",
+        "action_id": "Color",
         "payload": {
           "color": "deepskyblue"
         },

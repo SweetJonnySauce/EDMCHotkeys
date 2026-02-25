@@ -1,11 +1,18 @@
 from __future__ import annotations
 
+import json
+
 from edmc_hotkeys.bindings import BindingRecord, BindingsDocument, default_document
 from edmc_hotkeys.registry import Action
 from edmc_hotkeys.settings_state import BindingRow, SettingsState
 
 
-def _action(action_id: str, *, plugin: str = "plugin", enabled: bool = True) -> Action:
+def _action(
+    action_id: str,
+    *,
+    plugin: str = "plugin",
+    enabled: bool = True,
+) -> Action:
     return Action(
         id=action_id,
         label=action_id,
@@ -62,6 +69,47 @@ def test_validation_allows_empty_rows_list() -> None:
     assert issues == []
 
 
+def test_from_document_exposes_payload_text() -> None:
+    document = BindingsDocument(
+        version=1,
+        active_profile="Default",
+        profiles={
+            "Default": [
+                BindingRecord(
+                    id="b1",
+                    hotkey="Ctrl+Shift+O",
+                    action_id="known.action",
+                    payload={"color": "red", "level": 2},
+                    enabled=True,
+                )
+            ]
+        },
+    )
+    state = SettingsState.from_document(document=document, actions=[_action("known.action", enabled=True)])
+
+    assert len(state.rows) == 1
+    assert json.loads(state.rows[0].payload_text) == {"color": "red", "level": 2}
+
+
+def test_validation_reports_invalid_payload() -> None:
+    document = default_document()
+    state = SettingsState.from_document(document=document, actions=[_action("known.action")])
+    state.rows = [
+        BindingRow(
+            id="b1",
+            hotkey="Ctrl+Shift+O",
+            plugin="plugin",
+            action_id="known.action",
+            payload_text="{oops",
+            enabled=True,
+        ),
+    ]
+
+    issues = state.validate()
+
+    assert any(issue.field == "payload" and issue.level == "error" for issue in issues)
+
+
 def test_to_document_preserves_non_active_profiles() -> None:
     document = BindingsDocument(
         version=1,
@@ -81,3 +129,21 @@ def test_to_document_preserves_non_active_profiles() -> None:
     assert "Mining" in updated.profiles
     assert updated.profiles["Mining"][0].id == "m1"
     assert updated.profiles["Default"][0].id == "new"
+
+
+def test_to_document_parses_payload_text() -> None:
+    document = default_document()
+    state = SettingsState.from_document(document=document, actions=[_action("known.action")])
+    state.rows = [
+        BindingRow(
+            id="b1",
+            hotkey="Ctrl+Shift+O",
+            plugin="plugin",
+            action_id="known.action",
+            payload_text='{"color":"lime"}',
+            enabled=True,
+        ),
+    ]
+
+    updated = state.to_document()
+    assert updated.profiles["Default"][0].payload == {"color": "lime"}

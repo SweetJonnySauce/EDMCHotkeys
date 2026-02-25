@@ -103,6 +103,36 @@ if something is not clear, ask clarifying questions
   - `make check` (if available)
   - `make test` (if available)
 
+## Phase 7 — Side-Specific Modifiers (Status: Pending)
+| Stage | Description | Status |
+| --- | --- | --- |
+| 7.1 | Define canonical hotkey tokens for left/right modifiers (`CtrlL`, `CtrlR`, `AltL`, `AltR`, `ShiftL`, `ShiftR`) and compatibility rules with existing generic tokens | Pending |
+| 7.2 | Update settings capture/editor to record and display side-specific modifiers while preserving existing generic hotkeys | Pending |
+| 7.3 | Extend parser + binding model to represent side-specific modifiers without breaking existing `bindings.json` values | Pending |
+| 7.4 | Implement backend capability matrix and behavior: enforce side-specific modifiers only where backend supports it; fail fast with explicit warning where unsupported | Pending |
+| 7.5 | Add optional low-level backend paths required for true side-specific matching (Windows/X11), with safe fallback to current behavior when unavailable | Pending |
+| 7.6 | Add tests: parser, settings capture, backend registration/matching, and unsupported-capability warnings | Pending |
+
+### Phase 7 Execution Plan (This Iteration)
+- Touch points:
+  - `edmc_hotkeys/settings_ui.py` for side-aware capture tokens and field editing.
+  - `edmc_hotkeys/backends/hotkey_parser.py` for canonical parsing of left/right modifiers.
+  - Backend adapters under `edmc_hotkeys/backends/` for capability reporting and side-specific matching paths.
+  - `docs/requirements-architecture-notes.md` for normative token/capability documentation.
+- Key constraints discovered:
+  - Current Windows path (`RegisterHotKey`) does not differentiate left/right modifiers.
+  - Current X11 path (modifier masks only) does not differentiate left/right modifiers.
+  - Wayland portal path currently has no side-specific contract in this plugin.
+  - Therefore, true side-specific behavior requires low-level event hooks or backend-specific alternative APIs.
+- Expected unchanged behavior during staged rollout:
+  - Existing generic hotkeys (for example `Ctrl+Shift+1`) remain valid and unchanged.
+  - No breaking schema migration in `bindings.json`; side-specific tokens are additive.
+  - Unsupported side-specific hotkeys must not crash plugin startup; they should be rejected with clear log messages.
+- Tests to run:
+  - `source .venv/bin/activate && python -m pytest`
+  - `source .venv/bin/activate && python -m compileall load.py edmc_hotkeys tests`
+  - Targeted backend tests for capability warnings and side-specific matching behavior
+
 # Implementation Results
 
 ## Phase 1 — Architecture Decisions

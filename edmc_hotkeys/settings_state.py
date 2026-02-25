@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
-from typing import Iterable
+from typing import Any, Iterable
 
 from .bindings import BindingRecord, BindingsDocument
 from .registry import Action
@@ -24,6 +25,7 @@ class BindingRow:
     plugin: str
     action_id: str
     payload: dict | None = None
+    payload_text: str = ""
     enabled: bool = True
 
 
@@ -74,6 +76,7 @@ class SettingsState:
                     plugin=plugin_name,
                     action_id=binding.action_id,
                     payload=binding.payload,
+                    payload_text=_payload_to_text(binding.payload),
                     enabled=binding.enabled,
                 )
             )
@@ -144,6 +147,17 @@ class SettingsState:
                         )
                     )
 
+            payload_issue = _validate_payload_text(row.payload_text)
+            if payload_issue is not None:
+                issues.append(
+                    ValidationIssue(
+                        level="error",
+                        row_id=row_key,
+                        field="payload",
+                        message=payload_issue,
+                    )
+                )
+
             if row.enabled and row.hotkey:
                 hotkey_key = row.hotkey.casefold()
                 conflict_with = seen_hotkeys.get(hotkey_key)
@@ -167,7 +181,7 @@ class SettingsState:
                 id=row.id,
                 hotkey=row.hotkey,
                 action_id=row.action_id,
-                payload=row.payload,
+                payload=_payload_from_row(row),
                 enabled=row.enabled,
             )
             for row in self.rows
@@ -178,3 +192,38 @@ class SettingsState:
             profiles=updated_profiles,
         )
 
+
+def _payload_to_text(payload: dict | None) -> str:
+    if payload is None:
+        return ""
+    return _canonical_payload_json(payload)
+
+
+def _validate_payload_text(payload_text: str) -> str | None:
+    text = payload_text.strip()
+    if not text:
+        return None
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        return "Payload must be valid JSON"
+    if not isinstance(parsed, dict):
+        return "Payload must be a JSON object"
+    return None
+
+
+def _payload_from_row(row: BindingRow) -> dict | None:
+    text = row.payload_text.strip()
+    if not text:
+        return None
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        return row.payload
+    if isinstance(parsed, dict):
+        return parsed
+    return row.payload
+
+
+def _canonical_payload_json(payload: dict[str, Any]) -> str:
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"))
