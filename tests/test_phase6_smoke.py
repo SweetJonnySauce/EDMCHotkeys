@@ -50,6 +50,37 @@ class _FakePumpPlugin:
         return 1
 
 
+class _FakeBindingsLookupPlugin:
+    def list_actions(self) -> list[Action]:
+        return [
+            Action(
+                id="test.on",
+                label="On",
+                plugin="EDMC-Hotkeys-Test",
+                callback=lambda **_kwargs: None,
+            ),
+            Action(
+                id="test.off",
+                label="Off",
+                plugin="EDMC-Hotkeys-Test",
+                callback=lambda **_kwargs: None,
+            ),
+            Action(
+                id="other.action",
+                label="Other",
+                plugin="OtherPlugin",
+                callback=lambda **_kwargs: None,
+            ),
+        ]
+
+    def list_bindings(self) -> list[Binding]:
+        return [
+            Binding(id="b-on", hotkey="Ctrl+Shift+F1", action_id="test.on", enabled=True),
+            Binding(id="b-off", hotkey="Ctrl+Shift+F2", action_id="test.off", enabled=True),
+            Binding(id="b-other", hotkey="Ctrl+Shift+F3", action_id="other.action", enabled=True),
+        ]
+
+
 class _FakeAfterWidget:
     def __init__(self) -> None:
         self.after_calls: list[tuple[int, object]] = []
@@ -132,6 +163,26 @@ def test_hook_smoke_journal_and_dashboard_pump_dispatch_queue(monkeypatch) -> No
 
     assert result is None
     assert fake_plugin.pump_calls == 2
+
+
+def test_list_bindings_filters_by_plugin_name(monkeypatch) -> None:
+    fake_plugin = _FakeBindingsLookupPlugin()
+    monkeypatch.setattr(plugin_load, "_plugin", fake_plugin)
+
+    bindings = plugin_load.list_bindings("EDMC-Hotkeys-Test")
+
+    assert [binding.id for binding in bindings] == ["b-on", "b-off"]
+
+
+def test_list_bindings_is_case_insensitive_and_requires_name(monkeypatch) -> None:
+    fake_plugin = _FakeBindingsLookupPlugin()
+    monkeypatch.setattr(plugin_load, "_plugin", fake_plugin)
+
+    matched = plugin_load.list_bindings("edmc-hotkeys-test")
+    missing = plugin_load.list_bindings("")
+
+    assert [binding.id for binding in matched] == ["b-on", "b-off"]
+    assert missing == []
 
 
 def test_dispatch_pump_scheduler_runs_and_can_be_stopped(monkeypatch) -> None:

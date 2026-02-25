@@ -78,6 +78,28 @@ def list_actions() -> list[Action]:
     return plugin.list_actions()
 
 
+def list_bindings(plugin_name: str) -> list[Binding]:
+    plugin = _require_started()
+    if plugin is None:
+        return []
+
+    normalized_name = plugin_name.strip()
+    if not normalized_name:
+        logger.warning("Plugin name is required when listing bindings")
+        return []
+    target = normalized_name.casefold()
+
+    action_ids = {
+        action.id
+        for action in plugin.list_actions()
+        if action.plugin and action.plugin.casefold() == target
+    }
+    if not action_ids:
+        return []
+
+    return [binding for binding in plugin.list_bindings() if binding.action_id in action_ids]
+
+
 def get_action(action_id: str) -> Optional[Action]:
     plugin = _require_started()
     if plugin is None:

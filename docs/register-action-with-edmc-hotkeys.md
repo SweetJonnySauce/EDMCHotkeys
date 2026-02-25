@@ -8,6 +8,61 @@ This guide shows how another EDMC plugin can register actions with `EDMC-Hotkeys
   - use `thread_policy="main"` for Tk/UI changes.
   - use `thread_policy="worker"` only for non-UI/background work.
 
+## Public Module API
+Import the plugin API module:
+
+```python
+import importlib
+hotkeys = importlib.import_module("EDMC-Hotkeys.load")
+```
+
+Available functions:
+
+```python
+register_action(action: Action) -> bool
+list_actions() -> list[Action]
+list_bindings(plugin_name: str) -> list[Binding]
+get_action(action_id: str) -> Action | None
+invoke_action(
+    action_id: str,
+    payload: dict | None = None,
+    source: str = "hotkey",
+    hotkey: str | None = None,
+) -> bool
+invoke_bound_action(binding: Binding, source: str = "hotkey") -> bool
+```
+
+`list_bindings(plugin_name)` behavior:
+- `plugin_name` is required (empty string returns `[]`).
+- matching is case-insensitive against `Action.plugin`.
+- returns only bindings assigned to actions owned by that plugin.
+
+Action shape:
+
+```python
+Action(
+    id: str,
+    label: str,
+    plugin: str,
+    callback: Callable[..., Any],
+    params_schema: dict | None = None,
+    thread_policy: str = "main",  # "main" or "worker"
+    enabled: bool = True,
+)
+```
+
+Binding shape:
+
+```python
+Binding(
+    id: str,
+    hotkey: str,
+    action_id: str,
+    payload: dict | None = None,
+    enabled: bool = True,
+)
+```
+
 ## Action Callback Contract
 Your callback should accept keyword args:
 
