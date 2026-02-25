@@ -67,7 +67,9 @@ def test_invoke_binding_forwards_to_registry() -> None:
     result = plugin.invoke_binding(binding, source="hotkey-test")
 
     assert result is True
-    assert received == [{"payload": {"visible": False}, "source": "hotkey-test"}]
+    assert received == [
+        {"payload": {"visible": False}, "source": "hotkey-test", "hotkey": "Ctrl+Shift+O"}
+    ]
 
 
 def test_invoke_binding_skips_disabled_binding() -> None:
@@ -181,7 +183,13 @@ def test_backend_hotkey_callback_invokes_registered_binding_action() -> None:
     assert backend.callback is not None
     backend.callback("binding-1")
 
-    assert received == [{"payload": {"visible": False}, "source": "backend:fake-backend"}]
+    assert received == [
+        {
+            "payload": {"visible": False},
+            "source": "backend:fake-backend",
+            "hotkey": "Ctrl+Shift+O",
+        }
+    ]
     plugin.stop()
 
 

@@ -12,12 +12,14 @@ This guide shows how another EDMC plugin can register actions with `EDMC-Hotkeys
 Your callback should accept keyword args:
 
 ```python
-def my_callback(*, payload=None, source="hotkey"):
+def my_callback(*, payload=None, source="hotkey", hotkey=None):
     ...
 ```
 
 - `payload`: optional dict from the binding.
 - `source`: where invocation came from (for example `backend:linux-x11`).
+- `hotkey`: hotkey string when invoked via a binding (optional; omitted if not available).
+- `EDMC-Hotkeys` only passes `hotkey` when your callback declares it or accepts `**kwargs`.
 
 ## Minimal Registration Example
 
@@ -42,25 +44,25 @@ def plugin_start3(plugin_dir: str) -> str:
     return plugin_name
 
 
-def _set_on(*, payload=None, source="hotkey"):
+def _set_on(*, payload=None, source="hotkey", hotkey=None):
     del payload
-    logger.info("ON action from %s", source)
+    logger.info("ON action from %s (hotkey=%s)", source, hotkey)
     # Update your UI/state here (main-thread safe)
 
 
-def _set_off(*, payload=None, source="hotkey"):
+def _set_off(*, payload=None, source="hotkey", hotkey=None):
     del payload
-    logger.info("OFF action from %s", source)
+    logger.info("OFF action from %s (hotkey=%s)", source, hotkey)
 
 
-def _toggle(*, payload=None, source="hotkey"):
+def _toggle(*, payload=None, source="hotkey", hotkey=None):
     del payload
-    logger.info("TOGGLE action from %s", source)
+    logger.info("TOGGLE action from %s (hotkey=%s)", source, hotkey)
 
 
-def _set_color(*, payload=None, source="hotkey"):
+def _set_color(*, payload=None, source="hotkey", hotkey=None):
     color = (payload or {}).get("color", "gray")
-    logger.info("COLOR action from %s -> %s", source, color)
+    logger.info("COLOR action from %s (hotkey=%s) -> %s", source, hotkey, color)
     # Apply color to your UI block here
 
 

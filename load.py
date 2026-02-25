@@ -85,11 +85,16 @@ def get_action(action_id: str) -> Optional[Action]:
     return plugin.get_action(action_id)
 
 
-def invoke_action(action_id: str, payload: Optional[dict] = None, source: str = "hotkey") -> bool:
+def invoke_action(
+    action_id: str,
+    payload: Optional[dict] = None,
+    source: str = "hotkey",
+    hotkey: Optional[str] = None,
+) -> bool:
     plugin = _require_started()
     if plugin is None:
         return False
-    return plugin.invoke_action(action_id=action_id, payload=payload, source=source)
+    return plugin.invoke_action(action_id=action_id, payload=payload, source=source, hotkey=hotkey)
 
 
 def invoke_bound_action(binding: Binding, source: str = "hotkey") -> bool:

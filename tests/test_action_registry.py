@@ -98,6 +98,56 @@ def test_invoke_action_uses_worker_dispatch_when_configured() -> None:
     assert received == [{"payload": {"n": 1}, "source": "test"}]
 
 
+def test_invoke_action_passes_hotkey_when_callback_accepts_kwarg() -> None:
+    received = []
+    registry = ActionRegistry()
+
+    def _with_hotkey(*, payload=None, source="hotkey", hotkey=None):
+        received.append({"payload": payload, "source": source, "hotkey": hotkey})
+
+    assert registry.register_action(
+        Action(
+            id="plugin.hotkey",
+            label="Hotkey",
+            plugin="plugin",
+            callback=_with_hotkey,
+        )
+    )
+
+    assert registry.invoke_action(
+        "plugin.hotkey",
+        payload={"k": "v"},
+        source="test",
+        hotkey="Ctrl+Shift+O",
+    )
+    assert received == [{"payload": {"k": "v"}, "source": "test", "hotkey": "Ctrl+Shift+O"}]
+
+
+def test_invoke_action_omits_hotkey_when_callback_disallows_kwarg() -> None:
+    received = []
+    registry = ActionRegistry()
+
+    def _no_hotkey(*, payload=None, source="hotkey"):
+        received.append({"payload": payload, "source": source})
+
+    assert registry.register_action(
+        Action(
+            id="plugin.nohotkey",
+            label="NoHotkey",
+            plugin="plugin",
+            callback=_no_hotkey,
+        )
+    )
+
+    assert registry.invoke_action(
+        "plugin.nohotkey",
+        payload={"k": "v"},
+        source="test",
+        hotkey="Ctrl+Shift+O",
+    )
+    assert received == [{"payload": {"k": "v"}, "source": "test"}]
+
+
 def test_invoke_action_callback_exception_is_caught(caplog) -> None:
     dispatch = RecordingDispatchExecutor()
 

@@ -78,7 +78,7 @@
 - Plugin ID / config prefix: `edmc_hotkeys` (single plugin name: `EDMC-Hotkeys`).
 - Registration API: `register_action(action)` returns `True`/`False` and rejects duplicate IDs (first wins).
 - Discovery: `list_actions()` returns all actions; `get_action(action_id)` returns the action or `None`.
-- Dispatch: `invoke_action(action_id, payload=None, source="hotkey")` performs lookup + dispatch with logging.
+- Dispatch: `invoke_action(action_id, payload=None, source="hotkey", hotkey=None)` performs lookup + dispatch with logging.
 - Action schema (minimum fields):
   - `id` (string, stable, unique)
   - `label` (string for UI)
@@ -89,6 +89,7 @@
   - `enabled` (bool, default `True`)
 - Threading contract: hotkey listener runs in the background; **dispatch defaults to main thread**. Actions explicitly marked `worker` may execute off-main.
 - Error handling: missing ID -> no-op + warning; callback exceptions -> caught + logged; never crash EDMC.
+- Callback context: action callbacks may accept an optional `hotkey` keyword argument when invoked via a binding.
 
 ## Hotkey Capture Considerations (OS-level)
 - Must be global (works while the game has focus).

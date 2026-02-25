@@ -142,16 +142,27 @@ class HotkeyPlugin:
         action_id: str,
         payload: Optional[dict[str, Any]] = None,
         source: str = "hotkey",
+        hotkey: Optional[str] = None,
     ) -> bool:
         """Invoke action through the plugin's internal registry."""
-        return self._registry.invoke_action(action_id=action_id, payload=payload, source=source)
+        return self._registry.invoke_action(
+            action_id=action_id,
+            payload=payload,
+            source=source,
+            hotkey=hotkey,
+        )
 
     def invoke_binding(self, binding: Binding, source: str = "hotkey") -> bool:
         """Invoke a binding's target action if the binding is enabled."""
         if not binding.enabled:
             self._logger.debug("Skipping disabled binding '%s'", binding.id)
             return False
-        return self.invoke_action(action_id=binding.action_id, payload=binding.payload, source=source)
+        return self.invoke_action(
+            action_id=binding.action_id,
+            payload=binding.payload,
+            source=source,
+            hotkey=binding.hotkey,
+        )
 
     def _on_backend_hotkey(self, binding_id: str) -> None:
         binding = self._bindings.get(binding_id)

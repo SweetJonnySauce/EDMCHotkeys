@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import logging
 from queue import Empty, Queue
 import threading
@@ -10,6 +11,19 @@ from typing import Any, Callable, Optional, Protocol
 
 
 ActionCallback = Callable[..., Any]
+
+
+def _callback_supports_kwarg(callback: ActionCallback, name: str) -> bool:
+    try:
+        signature = inspect.signature(callback)
+    except (TypeError, ValueError):
+        return False
+    for param in signature.parameters.values():
+        if param.kind == inspect.Parameter.VAR_KEYWORD:
+            return True
+        if param.name == name and param.kind != inspect.Parameter.POSITIONAL_ONLY:
+            return True
+    return False
 
 
 class DispatchExecutor(Protocol):
@@ -171,6 +185,7 @@ class ActionRegistry:
         action_id: str,
         payload: Optional[dict[str, Any]] = None,
         source: str = "hotkey",
+        hotkey: Optional[str] = None,
     ) -> bool:
         """Lookup and dispatch an action callback with guarded error handling."""
         action = self.get_action(action_id)
@@ -181,7 +196,7 @@ class ActionRegistry:
             self._logger.warning("Action id '%s' is disabled", action_id)
             return False
 
-        callback = lambda: self._invoke_callback(action, payload, source)
+        callback = lambda: self._invoke_callback(action, payload, source, hotkey)
         dispatcher = (
             self._dispatch_executor.run_worker
             if action.thread_policy == "worker"
@@ -199,9 +214,13 @@ class ActionRegistry:
         action: Action,
         payload: Optional[dict[str, Any]],
         source: str,
+        hotkey: Optional[str],
     ) -> bool:
         try:
-            action.callback(payload=payload, source=source)
+            kwargs = {"payload": payload, "source": source}
+            if hotkey is not None and _callback_supports_kwarg(action.callback, "hotkey"):
+                kwargs["hotkey"] = hotkey
+            action.callback(**kwargs)
             return True
         except Exception:
             self._logger.exception("Action '%s' raised an exception", action.id)
