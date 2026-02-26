@@ -7,7 +7,7 @@ import threading
 from types import SimpleNamespace
 
 import load as plugin_load
-from edmc_hotkeys.backends.base import BackendAvailability
+from edmc_hotkeys.backends.base import BackendAvailability, BackendCapabilities
 from edmc_hotkeys.plugin import Binding, HotkeyPlugin
 from edmc_hotkeys.registry import Action, ThreadedWorkerDispatchExecutor
 from edmc_hotkeys.settings_state import ValidationIssue
@@ -25,6 +25,9 @@ class _FakeBackend:
 
     def availability(self) -> BackendAvailability:
         return BackendAvailability(name=self.name, available=True)
+
+    def capabilities(self) -> BackendCapabilities:
+        return BackendCapabilities(supports_side_specific_modifiers=True)
 
     def start(self, on_hotkey):
         self.callback = on_hotkey

@@ -51,6 +51,8 @@ def plugin_start3(plugin_dir: str) -> str:
     _bindings_document, disable_reasons = _auto_disable_unsupported_bindings(loaded_document, _plugin)
     if _bindings_document != loaded_document:
         _bindings_store.save(_bindings_document)
+    if disable_reasons:
+        logger.info("Capability policy auto-disabled %d binding(s) for active profile", len(disable_reasons))
     for reason in disable_reasons:
         logger.info(reason)
 
@@ -223,6 +225,8 @@ def prefs_changed(cmdr: str, is_beta: bool) -> None:
 
     new_document = state.to_document()
     normalized_document, disable_reasons = _auto_disable_unsupported_bindings(new_document, plugin)
+    if disable_reasons:
+        logger.info("Capability policy auto-disabled %d binding(s) for active profile", len(disable_reasons))
     for reason in disable_reasons:
         logger.info(reason)
 
@@ -269,6 +273,11 @@ def _auto_disable_unsupported_bindings(
     document: BindingsDocument,
     plugin: HotkeyPlugin,
 ) -> tuple[BindingsDocument, list[str]]:
+    """Apply core capability policy for the active profile.
+
+    This is the single policy gate for capability-driven auto-disable logic.
+    Backends should report capabilities, while core decides enable/disable state.
+    """
     capabilities = plugin.backend_capabilities()
     if capabilities.supports_side_specific_modifiers:
         return document, []
@@ -278,7 +287,7 @@ def _auto_disable_unsupported_bindings(
     updated: list[BindingRecord] = []
     reasons: list[str] = []
     for binding in existing:
-        if not binding.enabled or not binding.modifiers:
+        if not binding.enabled or not _binding_requires_side_specific_capabilities(binding):
             updated.append(binding)
             continue
         updated.append(
@@ -310,6 +319,10 @@ def _auto_disable_unsupported_bindings(
         ),
         reasons,
     )
+
+
+def _binding_requires_side_specific_capabilities(record: BindingRecord) -> bool:
+    return bool(record.modifiers)
 
 
 def _show_validation_error_dialog(issues: list[ValidationIssue]) -> None:

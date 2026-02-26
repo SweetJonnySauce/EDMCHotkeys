@@ -294,3 +294,30 @@ if something is not clear, ask clarifying questions
 - Verification:
   - `source .venv/bin/activate && python -m pytest` passed (`57 passed`).
   - `source .venv/bin/activate && python -m compileall load.py edmc_hotkeys tests` passed.
+
+## Cross-Platform Complexity Spec — Phase 1 (Core + X11 Alignment)
+- Implemented backend contract validation helper in `edmc_hotkeys/backends/base.py`:
+  - `backend_contract_issues(backend)` checks required backend interface shape for diagnostics/tests.
+- Added contract coverage in `tests/test_backend_contract.py`:
+  - verifies missing-contract violations are detected.
+  - verifies built-in adapters satisfy contract shape.
+- Centralized capability-gating intent in core policy helper:
+  - added `_binding_requires_side_specific_capabilities(...)` in `load.py`.
+  - kept auto-disable policy in startup/settings core paths and added summary disable-count logging.
+- Standardized startup diagnostics in `edmc_hotkeys/plugin.py`:
+  - logs selected backend + availability + `supports_side_specific_modifiers`.
+  - registration-failure logs now include backend name.
+- Aligned X11 diagnostics/lifecycle behavior in `edmc_hotkeys/backends/x11.py`:
+  - consistent start/stop/register/unregister warnings and status logs.
+  - X11 client clears in-memory registrations/callback state on stop.
+- Expanded tests:
+  - added startup/logging assertions in `tests/test_hotkey_plugin.py`.
+  - added capability-policy helper coverage in `tests/test_phase7_side_specific.py`.
+  - updated fake backend test doubles to satisfy backend capabilities contract.
+- Closed current release-check gap:
+  - added `scripts/check_no_print.py` and wired it into `make lint`.
+  - `make check` now executes lint + typecheck placeholder + tests + compile.
+- Verification:
+  - `source .venv/bin/activate && python -m pytest -q` passed (`74 passed`).
+  - `source .venv/bin/activate && make test` passed (`74 passed`).
+  - `source .venv/bin/activate && make check` passed.

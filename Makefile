@@ -11,10 +11,10 @@ compile:
 	$(PYTHON) -m compileall load.py edmc_hotkeys tests
 
 lint:
-	@echo "lint: no linter configured"
+	$(PYTHON) scripts/check_no_print.py
 
 typecheck:
-	@echo "typecheck: no type checker configured"
+	@echo "typecheck: no static type checker configured (skipped)"
 
 vendor-xlib:
 	./scripts/vendor_xlib.sh

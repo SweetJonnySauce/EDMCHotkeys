@@ -69,24 +69,61 @@ class X11HotkeyBackend(HotkeyBackend):
         return BackendCapabilities(supports_side_specific_modifiers=True)
 
     def start(self, on_hotkey: HotkeyCallback) -> bool:
-        if not self.availability().available or self._client is None:
+        availability = self.availability()
+        if not availability.available or self._client is None:
+            self._logger.warning(
+                "Hotkey backend '%s' unavailable: %s",
+                self.name,
+                availability.reason,
+            )
             return False
-        return self._client.start(on_hotkey)
+        started = self._client.start(on_hotkey)
+        if started:
+            self._logger.info("Hotkey backend '%s' started", self.name)
+        else:
+            self._logger.warning("Hotkey backend '%s' failed to start", self.name)
+        return started
 
     def stop(self) -> None:
         if self._client is not None:
             self._client.stop()
+        self._logger.info("Hotkey backend '%s' stopped", self.name)
 
     def register_hotkey(self, binding_id: str, hotkey: str) -> bool:
-        if self._client is None and not self.availability().available:
+        availability = self.availability()
+        if self._client is None and not availability.available:
+            self._logger.warning(
+                "Cannot register X11 hotkey: backend '%s' unavailable: %s",
+                self.name,
+                availability.reason,
+            )
             return False
         assert self._client is not None
-        return self._client.register_hotkey(binding_id, hotkey)
+        registered = self._client.register_hotkey(binding_id, hotkey)
+        if not registered:
+            self._logger.warning(
+                "Backend '%s' failed to register hotkey: id=%s hotkey=%s",
+                self.name,
+                binding_id,
+                hotkey,
+            )
+        return registered
 
     def unregister_hotkey(self, binding_id: str) -> bool:
         if self._client is None:
+            self._logger.warning(
+                "Cannot unregister X11 hotkey: backend '%s' client is unavailable",
+                self.name,
+            )
             return False
-        return self._client.unregister_hotkey(binding_id)
+        unregistered = self._client.unregister_hotkey(binding_id)
+        if not unregistered:
+            self._logger.warning(
+                "Backend '%s' failed to unregister hotkey: id=%s",
+                self.name,
+                binding_id,
+            )
+        return unregistered
 
 
 @dataclass(frozen=True)
@@ -143,6 +180,10 @@ class PythonXlibClient:
         if self._thread is not None and self._thread.is_alive():
             self._thread.join(timeout=0.5)
         self._thread = None
+        self._callback = None
+        self._registrations.clear()
+        self._reverse_lookup.clear()
+        self._active_side_bindings.clear()
 
     def register_hotkey(self, binding_id: str, hotkey: str) -> bool:
         parsed = parse_hotkey(hotkey)

@@ -5,17 +5,19 @@ from pathlib import Path
 import threading
 import time
 
-from edmc_hotkeys.backends.base import BackendAvailability
+from edmc_hotkeys.backends.base import BackendAvailability, BackendCapabilities
 from edmc_hotkeys.plugin import Binding, HotkeyPlugin
 from edmc_hotkeys.registry import Action, InlineDispatchExecutor
 
 
 class _FakeBackend:
-    def __init__(self) -> None:
+    def __init__(self, *, register_ok: bool = True, supports_side_specific: bool = True) -> None:
         self.started = False
         self.registered: list[tuple[str, str]] = []
         self.unregistered: list[str] = []
         self.callback = None
+        self.register_ok = register_ok
+        self.supports_side_specific = supports_side_specific
 
     @property
     def name(self) -> str:
@@ -23,6 +25,9 @@ class _FakeBackend:
 
     def availability(self) -> BackendAvailability:
         return BackendAvailability(name=self.name, available=True)
+
+    def capabilities(self) -> BackendCapabilities:
+        return BackendCapabilities(supports_side_specific_modifiers=self.supports_side_specific)
 
     def start(self, on_hotkey):
         self.callback = on_hotkey
@@ -34,7 +39,7 @@ class _FakeBackend:
 
     def register_hotkey(self, binding_id: str, hotkey: str) -> bool:
         self.registered.append((binding_id, hotkey))
-        return True
+        return self.register_ok
 
     def unregister_hotkey(self, binding_id: str) -> bool:
         self.unregistered.append(binding_id)
@@ -213,4 +218,39 @@ def test_replace_bindings_reconciles_backend_registrations() -> None:
     assert "b1" in backend.unregistered
     assert "b2" in backend.unregistered
     assert backend.registered[-1] == ("b2", "Ctrl+Alt+P")
+    plugin.stop()
+
+
+def test_start_logs_selected_backend_with_capabilities(caplog) -> None:
+    backend = _FakeBackend(supports_side_specific=False)
+    plugin = HotkeyPlugin(
+        plugin_dir=Path("/tmp/edmc_hotkeys"),
+        logger=logging.getLogger("test.hotkeys"),
+        dispatch_executor=InlineDispatchExecutor(),
+        hotkey_backend=backend,
+    )
+
+    with caplog.at_level(logging.INFO):
+        plugin.start()
+
+    assert "Hotkey backend selected: name=fake-backend available=True supports_side_specific_modifiers=False" in caplog.text
+    plugin.stop()
+
+
+def test_register_binding_failure_log_includes_backend_name(caplog) -> None:
+    backend = _FakeBackend(register_ok=False)
+    plugin = HotkeyPlugin(
+        plugin_dir=Path("/tmp/edmc_hotkeys"),
+        logger=logging.getLogger("test.hotkeys"),
+        dispatch_executor=InlineDispatchExecutor(),
+        hotkey_backend=backend,
+    )
+    plugin.start()
+    binding = Binding(id="b1", hotkey="Ctrl+Shift+O", action_id="overlay.toggle", enabled=True)
+
+    with caplog.at_level(logging.WARNING):
+        result = plugin.register_binding(binding)
+
+    assert result is False
+    assert "backend=fake-backend" in caplog.text
     plugin.stop()

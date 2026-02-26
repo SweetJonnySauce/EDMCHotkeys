@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
-from .backends.base import BackendCapabilities, HotkeyBackend
+from .backends.base import BackendCapabilities, HotkeyBackend, backend_contract_issues
 from .backends.selector import select_backend
 from .hotkey import has_side_specific_modifiers, pretty_hotkey_from_text
 from .registry import Action, ActionRegistry, DispatchExecutor, QueuedMainThreadDispatchExecutor
@@ -57,6 +57,13 @@ class HotkeyPlugin:
             dispatch_executor=self._dispatch_executor,
         )
         self._hotkey_backend = hotkey_backend or select_backend(logger=logger)
+        contract_issues = backend_contract_issues(self._hotkey_backend)
+        if contract_issues:
+            self._logger.warning(
+                "Hotkey backend contract issues detected for '%s': %s",
+                type(self._hotkey_backend).__name__,
+                "; ".join(contract_issues),
+            )
         self._backend_started = False
         self._bindings: dict[str, Binding] = {}
 
@@ -66,6 +73,13 @@ class HotkeyPlugin:
 
     def start(self) -> None:
         availability = self._hotkey_backend.availability()
+        capabilities = self._hotkey_backend.capabilities()
+        self._logger.info(
+            "Hotkey backend selected: name=%s available=%s supports_side_specific_modifiers=%s",
+            availability.name,
+            availability.available,
+            capabilities.supports_side_specific_modifiers,
+        )
         if availability.available:
             started = self._hotkey_backend.start(self._on_backend_hotkey)
             self._backend_started = started
@@ -76,7 +90,8 @@ class HotkeyPlugin:
                         ok = self._hotkey_backend.register_hotkey(binding.id, binding.hotkey)
                         if not ok:
                             self._logger.warning(
-                                "Failed to register binding during startup: id=%s hotkey=%s",
+                                "Failed to register binding during startup: backend=%s id=%s hotkey=%s",
+                                availability.name,
                                 binding.id,
                                 binding.hotkey,
                             )
@@ -122,7 +137,8 @@ class HotkeyPlugin:
         ok = self._hotkey_backend.register_hotkey(binding.id, binding.hotkey)
         if not ok:
             self._logger.warning(
-                "Backend failed to register binding: id=%s hotkey=%s",
+                "Backend failed to register binding: backend=%s id=%s hotkey=%s",
+                self._hotkey_backend.name,
                 binding.id,
                 binding.hotkey,
             )

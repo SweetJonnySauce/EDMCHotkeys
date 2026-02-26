@@ -75,3 +75,25 @@ def test_auto_disable_marks_side_specific_bindings_disabled_when_backend_lacks_s
     assert updated.profiles["Default"][0].enabled is False
     assert updated.profiles["Default"][1].enabled is True
     assert reasons and "Auto-disabled binding 'b-side'" in reasons[0]
+
+
+def test_binding_requires_side_specific_capabilities_helper() -> None:
+    side_specific = BindingRecord(
+        id="b-side",
+        plugin="PluginA",
+        modifiers=("ctrl_l",),
+        key="a",
+        action_id="test.action",
+        enabled=True,
+    )
+    no_modifier = BindingRecord(
+        id="b-plain",
+        plugin="PluginA",
+        modifiers=(),
+        key="f1",
+        action_id="test.action",
+        enabled=True,
+    )
+
+    assert plugin_load._binding_requires_side_specific_capabilities(side_specific) is True
+    assert plugin_load._binding_requires_side_specific_capabilities(no_modifier) is False

@@ -1,6 +1,12 @@
 """Global hotkey backend adapters."""
 
-from .base import BackendAvailability, BackendCapabilities, HotkeyBackend, NullHotkeyBackend
+from .base import (
+    BackendAvailability,
+    BackendCapabilities,
+    HotkeyBackend,
+    NullHotkeyBackend,
+    backend_contract_issues,
+)
 from .selector import detect_linux_session, select_backend
 from .wayland import WaylandPortalBackend
 from .windows import WindowsHotkeyBackend
@@ -11,6 +17,7 @@ __all__ = [
     "BackendCapabilities",
     "HotkeyBackend",
     "NullHotkeyBackend",
+    "backend_contract_issues",
     "WindowsHotkeyBackend",
     "X11HotkeyBackend",
     "WaylandPortalBackend",

@@ -9,6 +9,15 @@ from typing import Callable, Optional, Protocol
 
 HotkeyCallback = Callable[[str], None]
 
+_REQUIRED_BACKEND_METHODS = (
+    "availability",
+    "capabilities",
+    "start",
+    "stop",
+    "register_hotkey",
+    "unregister_hotkey",
+)
+
 
 @dataclass(frozen=True)
 class BackendAvailability:
@@ -50,6 +59,20 @@ class HotkeyBackend(Protocol):
 
     def unregister_hotkey(self, binding_id: str) -> bool:
         """Unregister a hotkey for a binding id."""
+
+
+def backend_contract_issues(backend: object) -> list[str]:
+    """Return backend contract violations for diagnostics/tests."""
+    issues: list[str] = []
+    name_attr = getattr(backend, "name", None)
+    if not isinstance(name_attr, str) or not name_attr:
+        issues.append("Backend must expose a non-empty 'name' string")
+
+    for method_name in _REQUIRED_BACKEND_METHODS:
+        method = getattr(backend, method_name, None)
+        if not callable(method):
+            issues.append(f"Backend must implement callable '{method_name}'")
+    return issues
 
 
 class NullHotkeyBackend:

@@ -12,7 +12,7 @@
         ],
         "key": "f1",
         "action_id": "On",
-        "enabled": false
+        "enabled": true
       },
       {
         "id": "hotkeys_test_off",
@@ -23,7 +23,7 @@
         ],
         "key": "f2",
         "action_id": "Off",
-        "enabled": false
+        "enabled": true
       },
       {
         "id": "hotkeys_test_toggle",
@@ -33,7 +33,7 @@
         ],
         "key": "m",
         "action_id": "Toggle",
-        "enabled": false
+        "enabled": true
       },
       {
         "id": "hotkeys_test_color_red",
@@ -43,7 +43,7 @@
         ],
         "key": "l",
         "action_id": "Color",
-        "enabled": false,
+        "enabled": true,
         "payload": {
           "color": "red"
         }
@@ -57,7 +57,7 @@
         ],
         "key": "f5",
         "action_id": "Color",
-        "enabled": false,
+        "enabled": true,
         "payload": {
           "color": "lime"
         }
@@ -71,7 +71,7 @@
         ],
         "key": "f6",
         "action_id": "Color",
-        "enabled": false,
+        "enabled": true,
         "payload": {
           "color": "deepskyblue"
         }
