@@ -321,3 +321,50 @@ if something is not clear, ask clarifying questions
   - `source .venv/bin/activate && python -m pytest -q` passed (`74 passed`).
   - `source .venv/bin/activate && make test` passed (`74 passed`).
   - `source .venv/bin/activate && make check` passed.
+
+## Cross-Platform Complexity Spec — Phase 2 (Current-Scope Operational Guardrails)
+- Consolidated runtime feature-flag documentation in a canonical source:
+  - added `docs/feature-flags.md`.
+- Updated docs to reference canonical flag guidance and avoid duplicated semantics/defaults:
+  - `docs/requirements-architecture-notes.md`
+  - `docs/linux-user-setup.md`
+  - `docs/register-action-with-edmc-hotkeys.md`
+- Expanded manual regression guardrails in `docs/manual-qa-checklist.md`:
+  - explicit startup/backend-log pass/fail criteria.
+  - explicit settings apply/validation pass/fail criteria.
+  - dispatch/shutdown pass/fail criteria.
+  - manual-only checks section with rationale.
+- Added deterministic dispatch-pump lifecycle coverage in `tests/test_phase6_smoke.py`:
+  - idempotent scheduler behavior while already scheduled.
+  - safe stop behavior when no callback is scheduled.
+- Updated phase/status tracking and implementation notes in:
+  - `docs/plans/CROSS_PLATFORM_COMPLEXITY_MINIMIZATION_SPEC.md` (Phase 2 status/stages marked `Completed`, added Phase 2 implementation results).
+- Verification:
+  - `source .venv/bin/activate && python -m pytest -k "feature or backend"` passed (`28 passed, 48 deselected`).
+  - `source .venv/bin/activate && python -m pytest tests/test_phase6_smoke.py tests/test_hotkey_plugin.py` passed (`18 passed`).
+  - `source .venv/bin/activate && make test` passed (`76 passed`).
+  - `source .venv/bin/activate && make check` passed.
+  - `source .venv/bin/activate && python -m pytest` passed (`76 passed`).
+
+## Cross-Platform Complexity Spec — Phase 3 (Wayland Backend Work)
+- Status: Completed
+- Implemented:
+  - concrete Wayland portal client integration behind `PortalClient` in `edmc_hotkeys/backends/wayland.py`.
+  - `DbusNextPortalService` runtime service for XDG Desktop Portal `GlobalShortcuts`.
+  - `PortalGlobalShortcutsClient` delegating lifecycle/register/unregister operations to the service.
+  - backend wrapper diagnostics for unavailable/start/register/unregister outcomes.
+- Tests added/updated:
+  - `tests/test_backends.py`:
+    - concrete portal client delegation behavior.
+    - unavailable/start-path logging behavior.
+    - registration failure logging behavior.
+- Tier boundary result:
+  - Wayland remains Tier 1 only in this plugin (`supports_side_specific_modifiers=False`).
+  - side-specific bindings remain explicitly unsupported and core-gated on Wayland.
+- Verification:
+  - `source .venv/bin/activate && python -m pytest tests/test_backends.py -k "wayland"` passed (`7 passed, 16 deselected`).
+  - `source .venv/bin/activate && python -m pytest tests/test_phase6_smoke.py -k "backend or dispatch"` passed (`6 passed, 4 deselected`).
+  - `source .venv/bin/activate && make check` passed (`79 passed`).
+  - `source .venv/bin/activate && python -m pytest` passed (`79 passed`).
+- Source of truth:
+  - detailed stage plan + completion summary in `docs/plans/CROSS_PLATFORM_COMPLEXITY_MINIMIZATION_SPEC.md` sections `11.5` and `11.6`.

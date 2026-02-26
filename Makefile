@@ -1,6 +1,6 @@
 PYTHON := $(shell if [ -x .venv/bin/python ]; then echo .venv/bin/python; elif command -v python >/dev/null 2>&1; then echo python; else echo python3; fi)
 
-.PHONY: check test compile lint typecheck vendor-xlib
+.PHONY: check test compile lint typecheck vendor-xlib vendor-dbus-next
 
 check: lint typecheck test compile
 
@@ -18,3 +18,6 @@ typecheck:
 
 vendor-xlib:
 	./scripts/vendor_xlib.sh
+
+vendor-dbus-next:
+	./scripts/vendor_dbus_next.sh

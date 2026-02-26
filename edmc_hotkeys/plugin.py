@@ -8,7 +8,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
-from .backends.base import BackendCapabilities, HotkeyBackend, backend_contract_issues
+from .backends.base import (
+    BackendCapabilities,
+    HotkeyBackend,
+    as_batch_binding_backend,
+    as_runtime_status_backend,
+    backend_contract_issues,
+)
 from .backends.selector import select_backend
 from .hotkey import has_side_specific_modifiers, pretty_hotkey_from_text
 from .registry import Action, ActionRegistry, DispatchExecutor, QueuedMainThreadDispatchExecutor
@@ -95,6 +101,7 @@ class HotkeyPlugin:
                                 binding.id,
                                 binding.hotkey,
                             )
+                self._log_backend_runtime_status()
             else:
                 self._logger.warning("Hotkey backend '%s' failed to start", availability.name)
         else:
@@ -146,7 +153,11 @@ class HotkeyPlugin:
 
     def unregister_binding(self, binding_id: str) -> bool:
         """Remove binding and unregister from backend."""
-        self._bindings.pop(binding_id, None)
+        binding = self._bindings.pop(binding_id, None)
+        if binding is None:
+            return True
+        if not self._backend_started or not binding.enabled:
+            return True
         return self._hotkey_backend.unregister_hotkey(binding_id)
 
     def list_bindings(self) -> list[Binding]:
@@ -155,12 +166,19 @@ class HotkeyPlugin:
     def replace_bindings(self, bindings: list[Binding]) -> bool:
         """Replace all bindings and synchronize backend registrations."""
         all_ok = True
-        for existing_id in list(self._bindings.keys()):
-            if not self.unregister_binding(existing_id):
-                all_ok = False
-        for binding in bindings:
-            if not self.register_binding(binding):
-                all_ok = False
+        batch_backend = as_batch_binding_backend(self._hotkey_backend)
+        if batch_backend is not None:
+            batch_backend.begin_binding_batch()
+        try:
+            for existing_id in list(self._bindings.keys()):
+                if not self.unregister_binding(existing_id):
+                    all_ok = False
+            for binding in bindings:
+                if not self.register_binding(binding):
+                    all_ok = False
+        finally:
+            if batch_backend is not None:
+                batch_backend.end_binding_batch()
         return all_ok
 
     def pump_main_thread_dispatch(self, max_items: Optional[int] = None) -> int:
@@ -216,3 +234,19 @@ class HotkeyPlugin:
             extra={"qualname": "HotkeyPlugin.on_hotkey"},
         )
         self.invoke_binding(binding, source=source)
+
+    def _log_backend_runtime_status(self) -> None:
+        status_backend = as_runtime_status_backend(self._hotkey_backend)
+        if status_backend is None:
+            return
+        try:
+            snapshot = status_backend.runtime_status()
+        except Exception:
+            self._logger.debug("Failed to query backend runtime status", exc_info=True)
+            return
+        if not isinstance(snapshot, dict) and not hasattr(snapshot, "items"):
+            self._logger.debug("Backend runtime status ignored; expected mapping")
+            return
+        snapshot_dict = dict(snapshot)
+        rendered = " ".join(f"{key}={snapshot_dict[key]}" for key in sorted(snapshot_dict))
+        self._logger.info("Hotkey backend runtime status: %s", rendered)

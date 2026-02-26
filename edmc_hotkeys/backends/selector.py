@@ -8,9 +8,16 @@ import sys
 from typing import Mapping, Optional
 
 from .base import HotkeyBackend, NullHotkeyBackend
+from .gnome_bridge import GnomeWaylandBridgeBackend
 from .wayland import WaylandPortalBackend
 from .windows import WindowsHotkeyBackend
 from .x11 import X11HotkeyBackend
+
+
+def gnome_bridge_enabled(environ: Mapping[str, str]) -> bool:
+    """Return True when prototype GNOME bridge backend is explicitly enabled."""
+    value = environ.get("EDMC_HOTKEYS_GNOME_BRIDGE", "")
+    return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def detect_linux_session(environ: Mapping[str, str]) -> str:
@@ -31,6 +38,7 @@ def select_backend(
     windows_backend: Optional[HotkeyBackend] = None,
     x11_backend: Optional[HotkeyBackend] = None,
     wayland_backend: Optional[HotkeyBackend] = None,
+    gnome_bridge_backend: Optional[HotkeyBackend] = None,
 ) -> HotkeyBackend:
     """Select backend according to platform/session strategy."""
     log = logger or logging.getLogger("EDMC-Hotkeys")
@@ -43,6 +51,12 @@ def select_backend(
     if current_platform.startswith("linux"):
         session = detect_linux_session(env)
         if session == "wayland":
+            if gnome_bridge_enabled(env):
+                return gnome_bridge_backend or GnomeWaylandBridgeBackend(
+                    logger=log,
+                    platform_name=current_platform,
+                    environ=env,
+                )
             return wayland_backend or WaylandPortalBackend(logger=log, platform_name=current_platform)
         if session == "x11":
             return x11_backend or X11HotkeyBackend(logger=log, platform_name=current_platform)

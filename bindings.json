@@ -7,10 +7,10 @@
         "id": "hotkeys_test_on",
         "plugin": "EDMC-Hotkeys-Test",
         "modifiers": [
-          "ctrl_l",
-          "shift_l"
+          "ctrl",
+          "shift"
         ],
-        "key": "f1",
+        "key": "o",
         "action_id": "On",
         "enabled": true
       },
@@ -18,10 +18,9 @@
         "id": "hotkeys_test_off",
         "plugin": "EDMC-Hotkeys-Test",
         "modifiers": [
-          "ctrl_l",
-          "shift_l"
+          "ctrl"
         ],
-        "key": "f2",
+        "key": "o",
         "action_id": "Off",
         "enabled": true
       },
@@ -29,7 +28,7 @@
         "id": "hotkeys_test_toggle",
         "plugin": "EDMC-Hotkeys-Test",
         "modifiers": [
-          "ctrl_r"
+          "ctrl"
         ],
         "key": "m",
         "action_id": "Toggle",
@@ -39,7 +38,8 @@
         "id": "hotkeys_test_color_red",
         "plugin": "EDMC-Hotkeys-Test",
         "modifiers": [
-          "ctrl_r"
+          "ctrl",
+          "shift"
         ],
         "key": "l",
         "action_id": "Color",
@@ -57,7 +57,7 @@
         ],
         "key": "f5",
         "action_id": "Color",
-        "enabled": true,
+        "enabled": false,
         "payload": {
           "color": "lime"
         }
@@ -71,7 +71,7 @@
         ],
         "key": "f6",
         "action_id": "Color",
-        "enabled": true,
+        "enabled": false,
         "payload": {
           "color": "deepskyblue"
         }

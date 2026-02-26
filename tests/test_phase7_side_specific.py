@@ -28,9 +28,21 @@ def test_hotkey_parser_accepts_canonical_and_pretty_side_specific_forms() -> Non
     assert pretty_hotkey_text(modifiers=pretty.modifiers, key=pretty.key) == "RCtrl+LShift+A"
 
 
-def test_hotkey_parser_rejects_generic_modifier_tokens() -> None:
-    assert parse_hotkey("Ctrl+Shift+A") is None
-    assert parse_hotkey("Alt+1") is None
+def test_hotkey_parser_accepts_generic_modifier_tokens() -> None:
+    parsed = parse_hotkey("Ctrl+Shift+A")
+    assert parsed is not None
+    assert parsed.modifiers == ("ctrl", "shift")
+    assert parsed.key == "a"
+
+    alt_parsed = parse_hotkey("Alt+1")
+    assert alt_parsed is not None
+    assert alt_parsed.modifiers == ("alt",)
+    assert alt_parsed.key == "1"
+
+
+def test_hotkey_parser_rejects_mixed_generic_and_side_specific_modifiers() -> None:
+    assert parse_hotkey("Ctrl+LCtrl+A") is None
+    assert parse_hotkey("Shift+RShift+F2") is None
 
 
 def test_settings_capture_uses_active_left_right_modifier_state() -> None:
@@ -59,6 +71,14 @@ def test_auto_disable_marks_side_specific_bindings_disabled_when_backend_lacks_s
                     enabled=True,
                 ),
                 BindingRecord(
+                    id="b-generic",
+                    plugin="PluginA",
+                    modifiers=("ctrl",),
+                    key="b",
+                    action_id="test.action",
+                    enabled=True,
+                ),
+                BindingRecord(
                     id="b-plain",
                     plugin="PluginA",
                     modifiers=(),
@@ -74,7 +94,10 @@ def test_auto_disable_marks_side_specific_bindings_disabled_when_backend_lacks_s
 
     assert updated.profiles["Default"][0].enabled is False
     assert updated.profiles["Default"][1].enabled is True
+    assert updated.profiles["Default"][2].enabled is True
     assert reasons and "Auto-disabled binding 'b-side'" in reasons[0]
+    assert len(reasons) == 1
+    assert all("b-generic" not in reason for reason in reasons)
 
 
 def test_binding_requires_side_specific_capabilities_helper() -> None:
@@ -94,6 +117,15 @@ def test_binding_requires_side_specific_capabilities_helper() -> None:
         action_id="test.action",
         enabled=True,
     )
+    generic_modifier = BindingRecord(
+        id="b-generic",
+        plugin="PluginA",
+        modifiers=("ctrl",),
+        key="g",
+        action_id="test.action",
+        enabled=True,
+    )
 
     assert plugin_load._binding_requires_side_specific_capabilities(side_specific) is True
     assert plugin_load._binding_requires_side_specific_capabilities(no_modifier) is False
+    assert plugin_load._binding_requires_side_specific_capabilities(generic_modifier) is False

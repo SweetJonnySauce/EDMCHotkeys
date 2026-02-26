@@ -202,15 +202,34 @@ Color payload example:
 }
 ```
 
+Wayland Tier 1-compatible generic example:
+
+```json
+{
+  "id": "test-toggle-generic",
+  "plugin": "My-Test-Plugin",
+  "modifiers": ["ctrl", "shift"],
+  "key": "t",
+  "action_id": "my_test.toggle",
+  "enabled": true
+}
+```
+
 Hotkey token notes:
-- `modifiers` must use side-specific canonical tokens (`ctrl_l`, `ctrl_r`, `alt_l`, `alt_r`, `shift_l`, `shift_r`, `win_l`, `win_r`).
-- Generic tokens like `ctrl`/`alt`/`shift` are not valid in v3 bindings.
+- `modifiers` may use canonical generic tokens:
+  - `ctrl`, `alt`, `shift`, `win`
+- `modifiers` may use canonical side-specific tokens:
+  - `ctrl_l`, `ctrl_r`, `alt_l`, `alt_r`, `shift_l`, `shift_r`, `win_l`, `win_r`
+- Mixed same-family generic + side-specific combinations are invalid:
+  - `ctrl` + `ctrl_l` (invalid)
+  - `shift` + `shift_r` (invalid)
 
 Backend behavior notes:
 - On Linux X11, side-specific bindings are detected using keymap polling plus edge detection (press transition), so modifier press order is supported.
-- On Linux X11, non-side-specific/global bindings continue to use passive grabs.
+- On Linux X11, generic/non-side-specific bindings continue to use passive grabs.
 - Side-specific bindings fire once per key press chord; release and press again to trigger again.
-- On Wayland, side-specific modifier bindings remain unsupported and are auto-disabled with diagnostics.
+- On Wayland Tier 1 backends (portal/bridge), generic and key-only bindings are supported.
+- On Wayland Tier 1 backends (portal/bridge), side-specific bindings are auto-disabled with diagnostics.
 
 ## Troubleshooting
 - `Action id '...' was not found`:
@@ -220,3 +239,7 @@ Backend behavior notes:
   - callback expected main-thread dispatch but queue was not being pumped; ensure you are on the latest `EDMC-Hotkeys` version.
 - Action returns `False` on register:
   - duplicate action ID already exists; make IDs unique.
+- Backend/runtime troubleshooting:
+  - see `docs/linux-user-setup.md` for session/backend checks.
+  - see `docs/manual-qa-checklist.md` for release regression checks.
+  - see `docs/feature-flags.md` for active runtime flags and defaults.

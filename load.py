@@ -185,6 +185,7 @@ def plugin_prefs(parent: object, cmdr: str, is_beta: bool) -> Optional[object]:
         state,
         logger=logger,
         notebook_widgets=notebook_widgets,
+        supports_side_specific_modifiers=plugin.backend_capabilities().supports_side_specific_modifiers,
     )
     if _settings_panel is None:
         return None
@@ -322,7 +323,7 @@ def _auto_disable_unsupported_bindings(
 
 
 def _binding_requires_side_specific_capabilities(record: BindingRecord) -> bool:
-    return bool(record.modifiers)
+    return any(modifier.endswith("_l") or modifier.endswith("_r") for modifier in record.modifiers)
 
 
 def _show_validation_error_dialog(issues: list[ValidationIssue]) -> None:

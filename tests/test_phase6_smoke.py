@@ -231,6 +231,28 @@ def test_dispatch_pump_scheduler_runs_and_can_be_stopped(monkeypatch) -> None:
     assert fake_widget.cancelled_ids == ["after-2"]
 
 
+def test_dispatch_pump_scheduler_is_idempotent_while_scheduled(monkeypatch) -> None:
+    fake_widget = _FakeAfterWidget()
+    monkeypatch.setattr(plugin_load, "_dispatch_pump_owner", None)
+    monkeypatch.setattr(plugin_load, "_dispatch_pump_after_id", None)
+
+    plugin_load._ensure_dispatch_pump_running(fake_widget)
+    plugin_load._ensure_dispatch_pump_running(fake_widget)
+
+    assert len(fake_widget.after_calls) == 1
+    plugin_load._stop_dispatch_pump()
+
+
+def test_dispatch_pump_stop_without_scheduled_after_is_safe(monkeypatch) -> None:
+    fake_widget = _FakeAfterWidget()
+    monkeypatch.setattr(plugin_load, "_dispatch_pump_owner", fake_widget)
+    monkeypatch.setattr(plugin_load, "_dispatch_pump_after_id", None)
+
+    plugin_load._stop_dispatch_pump()
+
+    assert fake_widget.cancelled_ids == []
+
+
 def test_prefs_apply_guard_blocks_apply_when_validation_has_errors(monkeypatch) -> None:
     fake_dialog = _FakePrefsDialog()
     fake_prefs_module = SimpleNamespace(PreferencesDialog=_FakePrefsDialog)

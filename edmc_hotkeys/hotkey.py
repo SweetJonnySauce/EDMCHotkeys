@@ -7,29 +7,39 @@ from typing import Iterable, Optional
 
 
 CANONICAL_MODIFIER_ORDER = (
+    "ctrl",
     "ctrl_l",
     "ctrl_r",
+    "alt",
     "alt_l",
     "alt_r",
+    "shift",
     "shift_l",
     "shift_r",
+    "win",
     "win_l",
     "win_r",
 )
 _CANONICAL_MODIFIER_SET = set(CANONICAL_MODIFIER_ORDER)
 
 _PRETTY_BY_CANONICAL = {
+    "ctrl": "Ctrl",
     "ctrl_l": "LCtrl",
     "ctrl_r": "RCtrl",
+    "alt": "Alt",
     "alt_l": "LAlt",
     "alt_r": "RAlt",
+    "shift": "Shift",
     "shift_l": "LShift",
     "shift_r": "RShift",
+    "win": "Win",
     "win_l": "LWin",
     "win_r": "RWin",
 }
 
 _MODIFIER_ALIASES = {
+    "ctrl": "ctrl",
+    "control": "ctrl",
     "lctrl": "ctrl_l",
     "ctrll": "ctrl_l",
     "ctrl_l": "ctrl_l",
@@ -40,18 +50,23 @@ _MODIFIER_ALIASES = {
     "ctrl_r": "ctrl_r",
     "controlr": "ctrl_r",
     "control_r": "ctrl_r",
+    "alt": "alt",
     "lalt": "alt_l",
     "altl": "alt_l",
     "alt_l": "alt_l",
     "ralt": "alt_r",
     "altr": "alt_r",
     "alt_r": "alt_r",
+    "shift": "shift",
     "lshift": "shift_l",
     "shiftl": "shift_l",
     "shift_l": "shift_l",
     "rshift": "shift_r",
     "shiftr": "shift_r",
     "shift_r": "shift_r",
+    "win": "win",
+    "super": "win",
+    "meta": "win",
     "lwin": "win_l",
     "winl": "win_l",
     "win_l": "win_l",
@@ -68,14 +83,11 @@ _MODIFIER_ALIASES = {
     "meta_r": "win_r",
 }
 
-_GENERIC_MODIFIER_TOKENS = {
-    "ctrl",
-    "control",
-    "alt",
-    "shift",
-    "win",
-    "super",
-    "meta",
+_MODIFIER_FAMILY_TOKENS = {
+    "ctrl": {"ctrl", "ctrl_l", "ctrl_r"},
+    "alt": {"alt", "alt_l", "alt_r"},
+    "shift": {"shift", "shift_l", "shift_r"},
+    "win": {"win", "win_l", "win_r"},
 }
 
 
@@ -92,6 +104,8 @@ def canonicalize_modifiers(modifiers: Iterable[str]) -> Optional[tuple[str, ...]
         if normalized is None:
             return None
         mapped.add(normalized)
+    if _has_mixed_generic_and_side_specific_family_tokens(mapped):
+        return None
     return tuple(token for token in CANONICAL_MODIFIER_ORDER if token in mapped)
 
 
@@ -133,8 +147,6 @@ def parse_hotkey(hotkey: str) -> Optional[ParsedHotkey]:
         if modifier is not None:
             modifier_tokens.append(modifier)
             continue
-        if _is_generic_modifier_token(part):
-            return None
         if key_token is not None:
             return None
         key_token = normalize_key_token(part)
@@ -184,7 +196,7 @@ def has_side_specific_modifiers(hotkey: str) -> bool:
     parsed = parse_hotkey(hotkey)
     if parsed is None:
         return False
-    return bool(parsed.modifiers)
+    return any(_is_side_specific_modifier(token) for token in parsed.modifiers)
 
 
 def _normalize_modifier_token(token: str) -> Optional[str]:
@@ -194,8 +206,15 @@ def _normalize_modifier_token(token: str) -> Optional[str]:
     return _MODIFIER_ALIASES.get(normalized)
 
 
-def _is_generic_modifier_token(token: str) -> bool:
-    return token.strip().lower() in _GENERIC_MODIFIER_TOKENS
+def _has_mixed_generic_and_side_specific_family_tokens(modifiers: set[str]) -> bool:
+    for family, family_tokens in _MODIFIER_FAMILY_TOKENS.items():
+        if family in modifiers and any(token in modifiers for token in family_tokens if token != family):
+            return True
+    return False
+
+
+def _is_side_specific_modifier(token: str) -> bool:
+    return token.endswith("_l") or token.endswith("_r")
 
 
 def _pretty_key(key: str) -> str:

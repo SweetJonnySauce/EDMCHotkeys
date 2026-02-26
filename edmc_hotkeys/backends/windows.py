@@ -319,11 +319,21 @@ class WindowsLowLevelHookFallback:
         }
 
         for token in required:
+            if token in groups:
+                continue
+            if token not in state:
+                return False
             if not state.get(token, False):
                 return False
 
-        for tokens in groups.values():
-            if required.intersection(tokens):
+        for group_name, tokens in groups.items():
+            requires_group = group_name in required
+            required_sides = required.intersection(tokens)
+            if requires_group and not any(state.get(token, False) for token in tokens):
+                return False
+            if required_sides and not all(state.get(token, False) for token in required_sides):
+                return False
+            if requires_group or required_sides:
                 continue
             if any(state.get(token, False) for token in tokens):
                 return False
@@ -443,7 +453,7 @@ class WindowsHotkeyBackend(HotkeyBackend):
             self._logger.warning("Unsupported Windows hotkey key '%s'", parsed.key)
             return False
 
-        requires_side_specific = bool(parsed.modifiers)
+        requires_side_specific = any(_is_side_specific_modifier(token) for token in parsed.modifiers)
         if requires_side_specific:
             if not self.capabilities().supports_side_specific_modifiers:
                 self._logger.warning(
@@ -549,15 +559,33 @@ def _to_windows_hotkey(modifiers: tuple[str, ...], key: str) -> tuple[int, Optio
 
 def _to_windows_modifier_mask(modifiers: tuple[str, ...]) -> int:
     mod_mask = 0
-    if any(token.startswith("alt_") for token in modifiers):
-        mod_mask |= MOD_ALT
-    if any(token.startswith("ctrl_") for token in modifiers):
-        mod_mask |= MOD_CONTROL
-    if any(token.startswith("shift_") for token in modifiers):
-        mod_mask |= MOD_SHIFT
-    if any(token.startswith("win_") for token in modifiers):
-        mod_mask |= MOD_WIN
+    for token in modifiers:
+        group = _modifier_group_for_token(token)
+        if group == "alt":
+            mod_mask |= MOD_ALT
+        elif group == "ctrl":
+            mod_mask |= MOD_CONTROL
+        elif group == "shift":
+            mod_mask |= MOD_SHIFT
+        elif group == "win":
+            mod_mask |= MOD_WIN
     return mod_mask
+
+
+def _modifier_group_for_token(token: str) -> str | None:
+    if token == "ctrl" or token.startswith("ctrl_"):
+        return "ctrl"
+    if token == "alt" or token.startswith("alt_"):
+        return "alt"
+    if token == "shift" or token.startswith("shift_"):
+        return "shift"
+    if token == "win" or token.startswith("win_"):
+        return "win"
+    return None
+
+
+def _is_side_specific_modifier(token: str) -> bool:
+    return token.endswith("_l") or token.endswith("_r")
 
 
 def _to_windows_virtual_key(key: str) -> Optional[int]:

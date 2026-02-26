@@ -44,3 +44,24 @@ def test_hotkey_from_event_captures_special_key() -> None:
 def test_hotkey_from_parts_returns_none_for_unsupported_key() -> None:
     result = hotkey_from_parts(state=0x0000, keysym="BracketLeft", char="[")
     assert result is None
+
+
+def test_hotkey_from_parts_uses_generic_modifiers_when_side_specific_is_unsupported() -> None:
+    result = hotkey_from_parts(
+        state=0x0005,
+        keysym="x",
+        char="x",
+        supports_side_specific_modifiers=False,
+    )
+    assert result == "Ctrl+Shift+X"
+
+
+def test_hotkey_from_parts_normalizes_active_side_specific_modifiers_to_generic_when_unsupported() -> None:
+    result = hotkey_from_parts(
+        state=0x0000,
+        keysym="x",
+        char="x",
+        active_modifiers=("ctrl_r", "shift_l"),
+        supports_side_specific_modifiers=False,
+    )
+    assert result == "Ctrl+Shift+X"

@@ -35,6 +35,45 @@ def test_validation_reports_hotkey_conflict() -> None:
     assert any(issue.field == "hotkey" and issue.level == "error" for issue in issues)
 
 
+def test_validation_reports_hotkey_conflict_for_generic_modifiers() -> None:
+    document = default_document()
+    state = SettingsState.from_document(document=document, actions=[_action("a.one"), _action("a.two")])
+    state.rows = [
+        BindingRow(id="b1", hotkey="Ctrl+Shift+O", plugin="plugin", action_id="a.one", enabled=True),
+        BindingRow(id="b2", hotkey="ctrl+shift+o", plugin="plugin", action_id="a.two", enabled=True),
+    ]
+
+    issues = state.validate()
+
+    assert any(issue.field == "hotkey" and issue.level == "error" for issue in issues)
+    assert any("Hotkey conflicts with 'b1'" in issue.message for issue in issues)
+
+
+def test_validation_allows_generic_modifier_hotkey_rows() -> None:
+    document = default_document()
+    state = SettingsState.from_document(document=document, actions=[_action("known.action", enabled=True)])
+    state.rows = [
+        BindingRow(id="b1", hotkey="Ctrl+Alt+M", plugin="plugin", action_id="known.action", enabled=True),
+    ]
+
+    issues = state.validate()
+
+    assert issues == []
+
+
+def test_validation_rejects_mixed_generic_and_side_specific_family_modifiers() -> None:
+    document = default_document()
+    state = SettingsState.from_document(document=document, actions=[_action("known.action", enabled=True)])
+    state.rows = [
+        BindingRow(id="b1", hotkey="Ctrl+LCtrl+O", plugin="plugin", action_id="known.action", enabled=True),
+    ]
+
+    issues = state.validate()
+
+    assert any(issue.field == "hotkey" and issue.level == "error" for issue in issues)
+    assert any("Do not mix generic and side-specific modifiers in the same family." in issue.message for issue in issues)
+
+
 def test_validation_reports_unknown_action() -> None:
     document = default_document()
     state = SettingsState.from_document(document=document, actions=[_action("known.action")])
@@ -93,6 +132,29 @@ def test_from_document_exposes_payload_text() -> None:
     assert json.loads(state.rows[0].payload_text) == {"color": "red", "level": 2}
 
 
+def test_from_document_exposes_generic_modifier_hotkeys_as_pretty_text() -> None:
+    document = BindingsDocument(
+        version=3,
+        active_profile="Default",
+        profiles={
+            "Default": [
+                BindingRecord(
+                    id="b1",
+                    plugin="plugin",
+                    modifiers=("ctrl", "shift"),
+                    key="o",
+                    action_id="known.action",
+                    enabled=True,
+                )
+            ]
+        },
+    )
+    state = SettingsState.from_document(document=document, actions=[_action("known.action", enabled=True)])
+
+    assert len(state.rows) == 1
+    assert state.rows[0].hotkey == "Ctrl+Shift+O"
+
+
 def test_validation_reports_invalid_payload() -> None:
     document = default_document()
     state = SettingsState.from_document(document=document, actions=[_action("known.action")])
@@ -149,6 +211,25 @@ def test_to_document_parses_payload_text() -> None:
 
     updated = state.to_document()
     assert updated.profiles["Default"][0].payload == {"color": "lime"}
+
+
+def test_to_document_round_trip_preserves_generic_modifiers() -> None:
+    document = default_document()
+    state = SettingsState.from_document(document=document, actions=[_action("known.action")])
+    state.rows = [
+        BindingRow(
+            id="b1",
+            hotkey="Ctrl+Alt+O",
+            plugin="plugin",
+            action_id="known.action",
+            enabled=True,
+        ),
+    ]
+
+    updated = state.to_document()
+    binding = updated.profiles["Default"][0]
+    assert binding.modifiers == ("ctrl", "alt")
+    assert binding.key == "o"
 
 
 def test_validation_requires_plugin() -> None:

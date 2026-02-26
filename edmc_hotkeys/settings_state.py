@@ -128,8 +128,9 @@ class SettingsState:
                             row_id=row_key,
                             field="hotkey",
                             message=(
-                                "Hotkey must include one key and side-specific modifiers "
-                                "(LCtrl/RCtrl/LAlt/RAlt/LShift/RShift/LWin/RWin)"
+                                "Hotkey must include one key and use valid modifiers "
+                                "(Ctrl/Alt/Shift/Win or LCtrl/RCtrl/LAlt/RAlt/LShift/RShift/LWin/RWin). "
+                                "Do not mix generic and side-specific modifiers in the same family."
                             ),
                         )
                     )

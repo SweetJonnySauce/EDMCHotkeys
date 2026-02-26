@@ -15,7 +15,7 @@ class ParsedHotkey:
 
 
 def parse_hotkey(hotkey: str) -> Optional[ParsedHotkey]:
-    """Parse canonical/pretty side-specific hotkeys into normalized components."""
+    """Parse canonical/pretty hotkeys into normalized components."""
     parsed = parse_canonical_hotkey(hotkey)
     if parsed is None:
         return None

@@ -1,10 +1,17 @@
 from __future__ import annotations
 
 import logging
+import socket
 
 from edmc_hotkeys.backends.base import BackendAvailability, NullHotkeyBackend
-from edmc_hotkeys.backends.selector import detect_linux_session, select_backend
-from edmc_hotkeys.backends.wayland import WaylandPortalBackend
+from edmc_hotkeys.backends.gnome_bridge import GnomeWaylandBridgeBackend
+from edmc_hotkeys.backends.gnome_sender_sync import SyncResult
+from edmc_hotkeys.backends.selector import detect_linux_session, gnome_bridge_enabled, select_backend
+from edmc_hotkeys.backends.wayland import (
+    DbusNextPortalService,
+    PortalGlobalShortcutsClient,
+    WaylandPortalBackend,
+)
 from edmc_hotkeys.backends.windows import WindowsHotkeyBackend
 from edmc_hotkeys.backends.x11 import (
     X11HotkeyBackend,
@@ -12,6 +19,7 @@ from edmc_hotkeys.backends.x11 import (
     _event_modifiers_from_pressed,
     _registration_grab_modifiers,
     _registration_matches_event,
+    _to_x11_key,
 )
 
 
@@ -93,9 +101,30 @@ class _FakeKernel32:
         return 1234
 
 
+class _FakeX11Mask:
+    ShiftMask = 0x01
+    ControlMask = 0x04
+    Mod1Mask = 0x08
+    Mod4Mask = 0x40
+
+
+class _FakeX11Keysym:
+    @staticmethod
+    def string_to_keysym(token: str) -> int:
+        return {"a": 97}.get(token, 0)
+
+
+class _FakeX11DisplayForMask:
+    @staticmethod
+    def keysym_to_keycode(keysym: int) -> int:
+        return 38 if keysym == 97 else 0
+
+
 class _FakePortalClient:
-    def __init__(self, available: bool = True) -> None:
+    def __init__(self, available: bool = True, *, start_ok: bool = True, register_ok: bool = True) -> None:
         self.available = available
+        self.start_ok = start_ok
+        self.register_ok = register_ok
         self.started = False
         self.registered: list[tuple[str, str]] = []
         self.unregistered: list[str] = []
@@ -110,13 +139,13 @@ class _FakePortalClient:
     def start(self, on_hotkey):
         del on_hotkey
         self.started = True
-        return self.available
+        return self.available and self.start_ok
 
     def stop(self) -> None:
         self.started = False
 
     def register_hotkey(self, binding_id: str, hotkey: str) -> bool:
-        if not self.available:
+        if not self.available or not self.register_ok:
             return False
         self.registered.append((binding_id, hotkey))
         return True
@@ -149,6 +178,102 @@ class _FakeX11Client:
         return True
 
 
+class _FakePortalService:
+    def __init__(self, *, available: bool = True, start_ok: bool = True, register_ok: bool = True) -> None:
+        self._available = available
+        self._start_ok = start_ok
+        self._register_ok = register_ok
+        self.started = False
+        self.stopped = False
+        self.registered: list[tuple[str, str]] = []
+        self.unregistered: list[str] = []
+
+    def availability(self) -> BackendAvailability:
+        return BackendAvailability(
+            name="linux-wayland-portal",
+            available=self._available,
+            reason=None if self._available else "portal unavailable",
+        )
+
+    def start(self, on_hotkey):
+        del on_hotkey
+        self.started = True
+        return self._available and self._start_ok
+
+    def stop(self) -> None:
+        self.stopped = True
+
+    def register_hotkey(self, binding_id: str, hotkey: str) -> bool:
+        if not self._available or not self._register_ok:
+            return False
+        self.registered.append((binding_id, hotkey))
+        return True
+
+    def unregister_hotkey(self, binding_id: str) -> bool:
+        self.unregistered.append(binding_id)
+        return True
+
+
+class _FakeVariant:
+    def __init__(self, value) -> None:
+        self.value = value
+
+
+class _FakeProxyObject:
+    def __init__(self, interface: object) -> None:
+        self._interface = interface
+
+    def get_interface(self, _name: str) -> object:
+        return self._interface
+
+
+class _FakeBus:
+    def __init__(self, interface: object) -> None:
+        self.calls: list[tuple[str, str, object]] = []
+        self._interface = interface
+
+    def get_proxy_object(self, bus_name: str, object_path: str, introspection: object) -> _FakeProxyObject:
+        self.calls.append((bus_name, object_path, introspection))
+        return _FakeProxyObject(self._interface)
+
+
+class _FakeBridgeSocket:
+    def __init__(self) -> None:
+        self.bound_path = ""
+        self.closed = False
+
+    def settimeout(self, _seconds: float) -> None:
+        return None
+
+    def bind(self, path: str) -> None:
+        self.bound_path = path
+
+    def recvfrom(self, _size: int) -> tuple[bytes, str]:
+        raise socket.timeout()
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class _FakeSenderSync:
+    def __init__(self, *, fail: bool = False) -> None:
+        self.fail = fail
+        self.sync_calls: list[dict[str, str]] = []
+        self.clear_calls = 0
+
+    def sync_bindings(self, bindings):
+        self.sync_calls.append(dict(bindings))
+        if self.fail:
+            return SyncResult(ok=False, synced_bindings=0, error="sync failed")
+        return SyncResult(ok=True, synced_bindings=len(bindings), error=None)
+
+    def clear_managed_bindings(self):
+        self.clear_calls += 1
+        if self.fail:
+            return SyncResult(ok=False, synced_bindings=0, error="clear failed")
+        return SyncResult(ok=True, synced_bindings=0, error=None)
+
+
 def test_detect_linux_session_wayland_from_session_type() -> None:
     assert detect_linux_session({"XDG_SESSION_TYPE": "wayland"}) == "wayland"
 
@@ -175,6 +300,24 @@ def test_select_backend_wayland_strategy() -> None:
         wayland_backend=wayland_backend,
     )
     assert selected is wayland_backend
+
+
+def test_select_backend_wayland_bridge_strategy_when_flag_enabled() -> None:
+    bridge_backend = _FakeBackend("wayland-bridge")
+    selected = select_backend(
+        logger=logging.getLogger("test.backends"),
+        platform_name="linux",
+        environ={"XDG_SESSION_TYPE": "wayland", "EDMC_HOTKEYS_GNOME_BRIDGE": "1"},
+        gnome_bridge_backend=bridge_backend,
+    )
+    assert selected is bridge_backend
+
+
+def test_gnome_bridge_enabled_true_and_false_values() -> None:
+    assert gnome_bridge_enabled({"EDMC_HOTKEYS_GNOME_BRIDGE": "1"})
+    assert gnome_bridge_enabled({"EDMC_HOTKEYS_GNOME_BRIDGE": "true"})
+    assert not gnome_bridge_enabled({})
+    assert not gnome_bridge_enabled({"EDMC_HOTKEYS_GNOME_BRIDGE": "0"})
 
 
 def test_select_backend_x11_strategy() -> None:
@@ -217,6 +360,26 @@ def test_windows_backend_registers_modifier_hotkey_with_registerhotkey() -> None
     assert backend.unregister_hotkey("binding-1") is True
 
 
+def test_windows_backend_registers_generic_modifier_hotkey_with_registerhotkey() -> None:
+    fake_user32 = _FakeUser32()
+    fake_fallback = _FakeFallback()
+    backend = WindowsHotkeyBackend(
+        logger=logging.getLogger("test.backends"),
+        platform_name="win32",
+        user32=fake_user32,
+        kernel32=_FakeKernel32(),
+        fallback=fake_fallback,
+    )
+    assert backend.start(lambda _binding_id: None) is True
+    assert backend.register_hotkey("binding-generic", "Ctrl+Shift+O") is True
+    assert fake_fallback.registered == []
+    assert fake_user32.register_calls
+    _, modifiers, virtual_key = fake_user32.register_calls[0]
+    assert modifiers == 0x0002 | 0x0004
+    assert virtual_key == ord("O")
+    assert backend.unregister_hotkey("binding-generic") is True
+
+
 def test_windows_backend_routes_no_modifier_hotkey_to_fallback() -> None:
     fake_user32 = _FakeUser32()
     fake_fallback = _FakeFallback()
@@ -233,6 +396,18 @@ def test_windows_backend_routes_no_modifier_hotkey_to_fallback() -> None:
     assert fake_user32.register_calls == []
     assert backend.unregister_hotkey("binding-2") is True
     assert fake_fallback.unregistered == ["binding-2"]
+
+
+def test_x11_key_conversion_supports_generic_modifiers() -> None:
+    result = _to_x11_key(
+        _FakeX11Mask,
+        _FakeX11Keysym,
+        _FakeX11DisplayForMask(),
+        ("ctrl", "shift"),
+        "a",
+    )
+
+    assert result == (38, 0x04 | 0x01)
 
 
 def test_x11_backend_uses_client_when_available() -> None:
@@ -263,6 +438,303 @@ def test_wayland_backend_uses_portal_client_when_available() -> None:
     assert portal_client.registered == [("binding-wl", "LCtrl+LAlt+M")]
     assert backend.unregister_hotkey("binding-wl") is True
     assert portal_client.unregistered == ["binding-wl"]
+
+
+def test_wayland_concrete_portal_client_delegates_to_service() -> None:
+    service = _FakePortalService(available=True, start_ok=True, register_ok=True)
+    client = PortalGlobalShortcutsClient(
+        logger=logging.getLogger("test.backends"),
+        platform_name="linux",
+        service=service,
+    )
+
+    assert client.availability().available is True
+    assert client.start(lambda _binding_id: None) is True
+    assert client.register_hotkey("binding-wl", "LCtrl+LAlt+M") is True
+    assert client.unregister_hotkey("binding-wl") is True
+    client.stop()
+
+    assert service.started is True
+    assert service.stopped is True
+    assert service.registered == [("binding-wl", "LCtrl+LAlt+M")]
+    assert service.unregistered == ["binding-wl"]
+
+
+def test_wayland_backend_logs_unavailable_reason(caplog) -> None:
+    portal_client = _FakePortalClient(available=False)
+    backend = WaylandPortalBackend(
+        logger=logging.getLogger("test.backends"),
+        platform_name="linux",
+        portal_client=portal_client,
+    )
+
+    with caplog.at_level(logging.WARNING):
+        started = backend.start(lambda _binding_id: None)
+
+    assert started is False
+    assert "unavailable" in caplog.text
+    assert "portal unavailable" in caplog.text
+
+
+def test_wayland_dbus_service_activated_signal_uses_shortcut_id() -> None:
+    service = DbusNextPortalService(
+        logger=logging.getLogger("test.backends"),
+        platform_name="linux",
+    )
+    callbacks: list[str] = []
+    service._callback = callbacks.append
+    service._registered = {"binding-1": "f1"}
+
+    service._on_activated_signal("/session/1", "binding-1", 123, {})
+
+    assert callbacks == ["binding-1"]
+
+
+def test_wayland_dbus_service_activated_signal_falls_back_to_options_values() -> None:
+    service = DbusNextPortalService(
+        logger=logging.getLogger("test.backends"),
+        platform_name="linux",
+    )
+    callbacks: list[str] = []
+    service._callback = callbacks.append
+    service._registered = {"binding-2": "f2"}
+
+    service._on_activated_signal(
+        "/session/1",
+        "",
+        123,
+        {"shortcut_id": _FakeVariant("binding-2")},
+    )
+
+    assert callbacks == ["binding-2"]
+
+
+def test_wayland_dbus_service_activated_signal_ignores_unknown_binding() -> None:
+    service = DbusNextPortalService(
+        logger=logging.getLogger("test.backends"),
+        platform_name="linux",
+    )
+    callbacks: list[str] = []
+    service._callback = callbacks.append
+    service._registered = {"binding-1": "f1"}
+
+    service._on_activated_signal("/session/1", "missing", 123, {})
+
+    assert callbacks == []
+
+
+def test_wayland_dbus_service_request_interface_uses_static_proxy_path() -> None:
+    service = DbusNextPortalService(
+        logger=logging.getLogger("test.backends"),
+        platform_name="linux",
+    )
+    sentinel_interface = object()
+    fake_bus = _FakeBus(sentinel_interface)
+    service._bus = fake_bus
+
+    resolved = service._request_interface("/org/freedesktop/portal/desktop/request/1_2/abc")
+
+    assert resolved is sentinel_interface
+    assert fake_bus.calls
+
+
+def test_wayland_dbus_service_portal_interface_uses_static_proxy_path() -> None:
+    service = DbusNextPortalService(
+        logger=logging.getLogger("test.backends"),
+        platform_name="linux",
+    )
+    sentinel_interface = object()
+    fake_bus = _FakeBus(sentinel_interface)
+    service._bus = fake_bus
+
+    resolved = service._portal_interface()
+
+    assert resolved is sentinel_interface
+    assert fake_bus.calls
+
+
+def test_wayland_dbus_service_session_interface_uses_static_proxy_path() -> None:
+    service = DbusNextPortalService(
+        logger=logging.getLogger("test.backends"),
+        platform_name="linux",
+    )
+    sentinel_interface = object()
+    fake_bus = _FakeBus(sentinel_interface)
+    service._bus = fake_bus
+
+    resolved = service._session_interface("/org/freedesktop/portal/desktop/session/1_2/abc")
+
+    assert resolved is sentinel_interface
+    assert fake_bus.calls
+
+
+def test_wayland_backend_logs_start_failure(caplog) -> None:
+    portal_client = _FakePortalClient(available=True, start_ok=False)
+    backend = WaylandPortalBackend(
+        logger=logging.getLogger("test.backends"),
+        platform_name="linux",
+        portal_client=portal_client,
+    )
+
+    with caplog.at_level(logging.WARNING):
+        started = backend.start(lambda _binding_id: None)
+
+    assert started is False
+    assert "failed to start" in caplog.text
+    assert "linux-wayland-portal" in caplog.text
+
+
+def test_wayland_backend_logs_registration_failure(caplog) -> None:
+    portal_client = _FakePortalClient(available=True, register_ok=False)
+    backend = WaylandPortalBackend(
+        logger=logging.getLogger("test.backends"),
+        platform_name="linux",
+        portal_client=portal_client,
+    )
+    assert backend.start(lambda _binding_id: None) is True
+
+    with caplog.at_level(logging.WARNING):
+        registered = backend.register_hotkey("binding-wl", "LCtrl+LAlt+M")
+
+    assert registered is False
+    assert "failed to register hotkey" in caplog.text
+    assert "binding-wl" in caplog.text
+
+
+def test_gnome_bridge_backend_unavailable_without_feature_flag(tmp_path) -> None:
+    backend = GnomeWaylandBridgeBackend(
+        logger=logging.getLogger("test.backends"),
+        platform_name="linux",
+        environ={"WAYLAND_DISPLAY": "wayland-0"},
+        socket_path=str(tmp_path / "bridge.sock"),
+    )
+
+    availability = backend.availability()
+
+    assert availability.available is False
+    assert "EDMC_HOTKEYS_GNOME_BRIDGE" in (availability.reason or "")
+
+
+def test_gnome_bridge_backend_dispatches_registered_binding(tmp_path) -> None:
+    socket_path = str(tmp_path / "bridge.sock")
+    fake_socket = _FakeBridgeSocket()
+    backend = GnomeWaylandBridgeBackend(
+        logger=logging.getLogger("test.backends"),
+        platform_name="linux",
+        environ={"WAYLAND_DISPLAY": "wayland-0", "EDMC_HOTKEYS_GNOME_BRIDGE": "1"},
+        socket_path=socket_path,
+        socket_factory=lambda: fake_socket,
+    )
+    callbacks: list[str] = []
+
+    assert backend.start(callbacks.append) is True
+    assert backend.register_hotkey("binding-1", "Ctrl+Alt+H") is True
+
+    backend._process_payload(b"binding-1")
+
+    backend.stop()
+    assert callbacks == ["binding-1"]
+
+
+def test_gnome_bridge_backend_accepts_json_payload(tmp_path) -> None:
+    socket_path = str(tmp_path / "bridge.sock")
+    fake_socket = _FakeBridgeSocket()
+    backend = GnomeWaylandBridgeBackend(
+        logger=logging.getLogger("test.backends"),
+        platform_name="linux",
+        environ={"WAYLAND_DISPLAY": "wayland-0", "EDMC_HOTKEYS_GNOME_BRIDGE": "1"},
+        socket_path=socket_path,
+        socket_factory=lambda: fake_socket,
+    )
+    callbacks: list[str] = []
+
+    assert backend.start(callbacks.append) is True
+    assert backend.register_hotkey("binding-json", "Ctrl+Alt+J") is True
+
+    backend._process_payload(b'{"binding_id":"binding-json"}')
+
+    backend.stop()
+    assert callbacks == ["binding-json"]
+
+
+def test_gnome_bridge_backend_autosync_status_and_runtime_snapshot(tmp_path) -> None:
+    socket_path = str(tmp_path / "bridge.sock")
+    fake_socket = _FakeBridgeSocket()
+    fake_sync = _FakeSenderSync()
+    backend = GnomeWaylandBridgeBackend(
+        logger=logging.getLogger("test.backends"),
+        platform_name="linux",
+        environ={"WAYLAND_DISPLAY": "wayland-0", "EDMC_HOTKEYS_GNOME_BRIDGE": "1"},
+        socket_path=socket_path,
+        socket_factory=lambda: fake_socket,
+        sender_sync=fake_sync,
+    )
+
+    assert backend.start(lambda _binding_id: None) is True
+    assert backend.register_hotkey("binding-sync", "Ctrl+M") is True
+    status = backend.runtime_status()
+    backend.stop()
+
+    assert fake_sync.sync_calls
+    assert any("binding-sync" in call for call in fake_sync.sync_calls)
+    assert fake_sync.clear_calls == 1
+    assert status["sender_status"] == "ready"
+    assert status["sender_synced_bindings"] >= 1
+
+
+def test_gnome_bridge_backend_batches_sender_sync_updates(tmp_path) -> None:
+    socket_path = str(tmp_path / "bridge.sock")
+    fake_socket = _FakeBridgeSocket()
+    fake_sync = _FakeSenderSync()
+    backend = GnomeWaylandBridgeBackend(
+        logger=logging.getLogger("test.backends"),
+        platform_name="linux",
+        environ={"WAYLAND_DISPLAY": "wayland-0", "EDMC_HOTKEYS_GNOME_BRIDGE": "1"},
+        socket_path=socket_path,
+        socket_factory=lambda: fake_socket,
+        sender_sync=fake_sync,
+    )
+
+    assert backend.start(lambda _binding_id: None) is True
+    baseline_calls = len(fake_sync.sync_calls)
+    backend.begin_binding_batch()
+    assert backend.register_hotkey("b1", "Ctrl+O") is True
+    assert backend.register_hotkey("b2", "Ctrl+M") is True
+    assert backend.unregister_hotkey("b1") is True
+    assert len(fake_sync.sync_calls) == baseline_calls
+    backend.end_binding_batch()
+    backend.stop()
+
+    assert len(fake_sync.sync_calls) == baseline_calls + 1
+    assert fake_sync.sync_calls[-1] == {"b2": "Ctrl+M"}
+
+
+def test_gnome_bridge_backend_warns_when_no_sender_events_seen(caplog, tmp_path) -> None:
+    socket_path = str(tmp_path / "bridge.sock")
+    fake_socket = _FakeBridgeSocket()
+    fake_sync = _FakeSenderSync()
+    backend = GnomeWaylandBridgeBackend(
+        logger=logging.getLogger("test.backends"),
+        platform_name="linux",
+        environ={
+            "WAYLAND_DISPLAY": "wayland-0",
+            "EDMC_HOTKEYS_GNOME_BRIDGE": "1",
+            "EDMC_HOTKEYS_GNOME_BRIDGE_NO_EVENTS_WARN_SECONDS": "0.01",
+        },
+        socket_path=socket_path,
+        socket_factory=lambda: fake_socket,
+        sender_sync=fake_sync,
+    )
+
+    assert backend.start(lambda _binding_id: None) is True
+    assert backend.register_hotkey("binding-warn", "Ctrl+M") is True
+    backend._started_at_mono -= 1.0
+
+    with caplog.at_level(logging.WARNING):
+        backend._maybe_warn_receiver_only()
+    backend.stop()
+
+    assert "receiver active but no companion events observed yet" in caplog.text
 
 
 def test_x11_side_specific_registration_match_is_order_insensitive() -> None:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Callable, Optional, Protocol
+from typing import Callable, Mapping, Optional, Protocol, runtime_checkable
 
 
 HotkeyCallback = Callable[[str], None]
@@ -59,6 +59,39 @@ class HotkeyBackend(Protocol):
 
     def unregister_hotkey(self, binding_id: str) -> bool:
         """Unregister a hotkey for a binding id."""
+
+
+@runtime_checkable
+class BatchBindingUpdateBackend(Protocol):
+    """Optional backend extension for batched binding replacement."""
+
+    def begin_binding_batch(self) -> None:
+        """Signal start of a bulk binding update."""
+
+    def end_binding_batch(self) -> None:
+        """Signal end of a bulk binding update."""
+
+
+@runtime_checkable
+class RuntimeStatusBackend(Protocol):
+    """Optional backend extension exposing runtime diagnostics snapshot."""
+
+    def runtime_status(self) -> Mapping[str, object]:
+        """Return backend runtime state for diagnostics logging."""
+
+
+def as_batch_binding_backend(backend: object) -> Optional[BatchBindingUpdateBackend]:
+    """Return backend as batch-capable extension when supported."""
+    if isinstance(backend, BatchBindingUpdateBackend):
+        return backend
+    return None
+
+
+def as_runtime_status_backend(backend: object) -> Optional[RuntimeStatusBackend]:
+    """Return backend as runtime-status extension when supported."""
+    if isinstance(backend, RuntimeStatusBackend):
+        return backend
+    return None
 
 
 def backend_contract_issues(backend: object) -> list[str]:

@@ -91,12 +91,14 @@ class SettingsPanel:
         *,
         logger: logging.Logger,
         notebook_widgets: object | None = None,
+        supports_side_specific_modifiers: bool = True,
     ) -> None:
         if tk is None or ttk is None:
             raise RuntimeError("tkinter is unavailable")
         self._logger = logger
         self._state = state
         self._notebook_widgets = notebook_widgets
+        self._supports_side_specific_modifiers = supports_side_specific_modifiers
         self.frame = self._widget_class("Frame", ttk.Frame)(parent)
         self._row_widgets: list[_RowWidgets] = []
         self._active_modifier_tokens: dict[str, dict[str, str]] = {}
@@ -306,7 +308,11 @@ class SettingsPanel:
         if _track_modifier_press(keysym, self._active_modifier_tokens, widget):
             return "break"
         active_tokens = tuple(self._active_modifier_tokens.get(str(widget), {}).values())
-        captured = hotkey_from_event(event, active_modifiers=active_tokens)
+        captured = hotkey_from_event(
+            event,
+            active_modifiers=active_tokens,
+            supports_side_specific_modifiers=self._supports_side_specific_modifiers,
+        )
         if captured is None:
             if keysym in _MODIFIER_KEYSYMS:
                 return "break"
@@ -347,16 +353,34 @@ class SettingsPanel:
         return getattr(self._notebook_widgets, name, fallback)
 
 
-def hotkey_from_event(event: object, *, active_modifiers: tuple[str, ...] = ()) -> str | None:
+def hotkey_from_event(
+    event: object,
+    *,
+    active_modifiers: tuple[str, ...] = (),
+    supports_side_specific_modifiers: bool = True,
+) -> str | None:
     """Convert a Tk key event into a canonical hotkey string."""
     state = int(getattr(event, "state", 0))
     keysym = str(getattr(event, "keysym", "") or "")
     char = str(getattr(event, "char", "") or "")
-    return hotkey_from_parts(state=state, keysym=keysym, char=char, active_modifiers=active_modifiers)
+    return hotkey_from_parts(
+        state=state,
+        keysym=keysym,
+        char=char,
+        active_modifiers=active_modifiers,
+        supports_side_specific_modifiers=supports_side_specific_modifiers,
+    )
 
 
-def hotkey_from_parts(*, state: int, keysym: str, char: str, active_modifiers: tuple[str, ...] = ()) -> str | None:
-    """Convert key event parts into pretty side-specific hotkey text."""
+def hotkey_from_parts(
+    *,
+    state: int,
+    keysym: str,
+    char: str,
+    active_modifiers: tuple[str, ...] = (),
+    supports_side_specific_modifiers: bool = True,
+) -> str | None:
+    """Convert key event parts into pretty hotkey text."""
     if keysym in _MODIFIER_KEYSYMS:
         return None
 
@@ -366,13 +390,16 @@ def hotkey_from_parts(*, state: int, keysym: str, char: str, active_modifiers: t
 
     grouped = _group_modifier_tokens(active_modifiers)
     if state & _CONTROL_MASK:
-        grouped.setdefault("ctrl", "ctrl_l")
+        grouped.setdefault("ctrl", _default_modifier_token("ctrl", supports_side_specific_modifiers))
     if state & _ALT_MASK:
-        grouped.setdefault("alt", "alt_l")
+        grouped.setdefault("alt", _default_modifier_token("alt", supports_side_specific_modifiers))
     if state & _SHIFT_MASK:
-        grouped.setdefault("shift", "shift_l")
+        grouped.setdefault("shift", _default_modifier_token("shift", supports_side_specific_modifiers))
     if state & _SUPER_MASK:
-        grouped.setdefault("win", "win_l")
+        grouped.setdefault("win", _default_modifier_token("win", supports_side_specific_modifiers))
+
+    if not supports_side_specific_modifiers:
+        grouped = {group: group for group in grouped}
 
     ordered = tuple(token for token in CANONICAL_MODIFIER_ORDER if token in grouped.values())
     return pretty_hotkey_text(modifiers=ordered, key=key)
@@ -444,15 +471,27 @@ def _track_modifier_release(keysym: str, store: dict[str, dict[str, str]], widge
 def _group_modifier_tokens(tokens: tuple[str, ...]) -> dict[str, str]:
     grouped: dict[str, str] = {}
     for token in tokens:
-        if token.startswith("ctrl_"):
+        if token == "ctrl" or token.startswith("ctrl_"):
             grouped["ctrl"] = token
-        elif token.startswith("alt_"):
+        elif token == "alt" or token.startswith("alt_"):
             grouped["alt"] = token
-        elif token.startswith("shift_"):
+        elif token == "shift" or token.startswith("shift_"):
             grouped["shift"] = token
-        elif token.startswith("win_"):
+        elif token == "win" or token.startswith("win_"):
             grouped["win"] = token
     return grouped
+
+
+def _default_modifier_token(group: str, supports_side_specific_modifiers: bool) -> str:
+    if not supports_side_specific_modifiers:
+        return group
+    defaults = {
+        "ctrl": "ctrl_l",
+        "alt": "alt_l",
+        "shift": "shift_l",
+        "win": "win_l",
+    }
+    return defaults[group]
 
 
 def build_settings_panel(
@@ -461,12 +500,19 @@ def build_settings_panel(
     *,
     logger: logging.Logger,
     notebook_widgets: object | None = None,
+    supports_side_specific_modifiers: bool = True,
 ) -> Optional[SettingsPanel]:
     if tk is None or ttk is None:
         logger.warning("tkinter is unavailable; settings UI cannot be created")
         return None
     try:
-        return SettingsPanel(parent, state, logger=logger, notebook_widgets=notebook_widgets)
+        return SettingsPanel(
+            parent,
+            state,
+            logger=logger,
+            notebook_widgets=notebook_widgets,
+            supports_side_specific_modifiers=supports_side_specific_modifiers,
+        )
     except Exception:
         logger.exception("Failed to build settings panel")
         return None

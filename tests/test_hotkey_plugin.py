@@ -221,6 +221,26 @@ def test_replace_bindings_reconciles_backend_registrations() -> None:
     plugin.stop()
 
 
+def test_replace_bindings_skips_backend_unregistration_for_disabled_bindings() -> None:
+    class _StrictBackend(_FakeBackend):
+        def unregister_hotkey(self, binding_id: str) -> bool:
+            return binding_id in {registered_id for registered_id, _hotkey in self.registered}
+
+    backend = _StrictBackend()
+    plugin = HotkeyPlugin(
+        plugin_dir=Path("/tmp/edmc_hotkeys"),
+        logger=logging.getLogger("test.hotkeys"),
+        dispatch_executor=InlineDispatchExecutor(),
+        hotkey_backend=backend,
+    )
+    plugin.start()
+
+    disabled = Binding(id="disabled", hotkey="Ctrl+Shift+O", action_id="overlay.toggle", enabled=False)
+    assert plugin.replace_bindings([disabled]) is True
+    assert plugin.replace_bindings([]) is True
+    plugin.stop()
+
+
 def test_start_logs_selected_backend_with_capabilities(caplog) -> None:
     backend = _FakeBackend(supports_side_specific=False)
     plugin = HotkeyPlugin(

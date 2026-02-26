@@ -3,3 +3,4 @@ __pycache__/
 Xlib/
 third_party_licenses/
 six.py
+dbus_next/

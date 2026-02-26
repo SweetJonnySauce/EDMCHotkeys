@@ -133,19 +133,19 @@ Every registration failure must log:
 | 1.4 | Expand automated coverage for core policy + X11 contract/integration paths | Completed |
 | 1.5 | Close gaps in release checks for current scope (`python -m pytest`, `make test`, `make check`) | Completed |
 
-## Phase 2 — Current-Scope Operational Guardrails (Status: Planned)
+## Phase 2 — Current-Scope Operational Guardrails (Status: Completed)
 | Stage | Description | Status |
 | --- | --- | --- |
-| 2.1 | Consolidate feature-flag docs and removal criteria for existing toggles | Planned |
-| 2.2 | Add regression checklist for startup/shutdown thread safety and dispatch pumping | Planned |
-| 2.3 | Add implementation notes tying current behavior to this spec and update docs links | Planned |
+| 2.1 | Consolidate feature-flag docs and removal criteria for existing toggles | Completed |
+| 2.2 | Add regression checklist for startup/shutdown thread safety and dispatch pumping | Completed |
+| 2.3 | Add implementation notes tying current behavior to this spec and update docs links | Completed |
 
-## Phase 3 — Wayland Backend Work (Status: Deferred)
+## Phase 3 — Wayland Backend Work (Status: Completed)
 | Stage | Description | Status |
 | --- | --- | --- |
-| 3.1 | Implement/integrate a concrete XDG GlobalShortcuts portal client behind `PortalClient` | Deferred |
-| 3.2 | Add unavailable/partial-support diagnostics and integration tests for portal runtime states | Deferred |
-| 3.3 | Revisit Wayland Tier 1/Tier 2 support boundaries after portal client validation | Deferred |
+| 3.1 | Implement/integrate a concrete XDG GlobalShortcuts portal client behind `PortalClient` | Completed |
+| 3.2 | Add unavailable/partial-support diagnostics and integration tests for portal runtime states | Completed |
+| 3.3 | Revisit Wayland Tier 1/Tier 2 support boundaries after portal client validation | Completed |
 
 ## Phase 4 — Windows Backend Work (Status: Deferred)
 | Stage | Description | Status |
@@ -335,11 +335,287 @@ Phase 1 done definition:
   - `source .venv/bin/activate && make test` (`74 passed`)
   - `source .venv/bin/activate && make check` (passed)
 
+## 11.3 Phase 2 Detailed Execution Plan
+
+Scope:
+- Add operational guardrails that keep the current core + X11 behavior stable and auditable.
+- Strengthen documentation/test process around existing behavior without expanding backend feature scope.
+
+Out of scope:
+- Any new Wayland implementation work.
+- Any new Windows backend implementation work.
+- Any change to public plugin API shape.
+
+Execution order:
+1. Complete 2.1 before 2.2.
+2. Complete 2.2 before 2.3.
+
+### Stage 2.1 — Consolidate Feature-Flag Docs and Removal Criteria
+Objective:
+- Create one source of truth for runtime feature flags, current defaults, and retirement conditions.
+
+Touch points:
+- `edmc_hotkeys/feature_flags.py`
+- `docs/requirements-architecture-notes.md`
+- `docs/plans/CROSS_PLATFORM_COMPLEXITY_MINIMIZATION_SPEC.md`
+- `docs/linux-user-setup.md`
+
+Tasks:
+- Inventory all active feature flags used by the plugin runtime.
+- Document for each flag:
+  - purpose
+  - default value
+  - affected backend/module
+  - risk profile
+  - exit criteria/removal trigger
+- Ensure docs reference the same flag names and expected behavior consistently.
+
+Acceptance criteria:
+- Every runtime feature flag is documented exactly once in a canonical location.
+- Cross-doc references point to that canonical location.
+- No stale flag names remain in docs.
+
+Tests to run:
+- `source .venv/bin/activate && python -m pytest -k "feature or backend"`
+- `source .venv/bin/activate && make check`
+
+Risk and rollback:
+- Risk: docs drift from code behavior.
+- Rollback: keep docs minimal + strictly generated from current code references if drift appears.
+
+### Stage 2.2 — Add Regression Checklist for Thread Safety and Dispatch Pumping
+Objective:
+- Make startup/shutdown and dispatch pumping behavior explicitly verifiable per release.
+
+Touch points:
+- `docs/manual-qa-checklist.md`
+- `tests/test_phase6_smoke.py`
+- `tests/test_hotkey_plugin.py`
+- `load.py`
+
+Tasks:
+- Add manual checklist steps for:
+  - startup backend selection log verification
+  - dispatch queue pumping via journal/dashboard hooks
+  - shutdown safety (no stuck listeners/timers)
+  - settings save/apply validation paths
+- Add/adjust tests where checklist steps can be enforced automatically.
+- Document known non-automatable checks and why they remain manual.
+
+Acceptance criteria:
+- Manual checklist contains explicit pass/fail criteria for threading/dispatch behavior.
+- Automated tests cover all deterministic thread/dispatch invariants.
+- Manual-only checks are clearly labeled with prerequisites.
+
+Tests to run:
+- `source .venv/bin/activate && python -m pytest tests/test_phase6_smoke.py tests/test_hotkey_plugin.py`
+- `source .venv/bin/activate && make test`
+
+Risk and rollback:
+- Risk: checklist becomes too broad and hard to execute consistently.
+- Rollback: keep a short required checklist and move extras to optional exploratory checks.
+
+### Stage 2.3 — Add Implementation Notes and Doc Link Integrity for This Spec
+Objective:
+- Ensure this spec stays synchronized with repository behavior and companion docs.
+
+Touch points:
+- `docs/plans/CROSS_PLATFORM_COMPLEXITY_MINIMIZATION_SPEC.md`
+- `docs/plans/IMPLEMENTATION_PLAN.md`
+- `docs/requirements-architecture-notes.md`
+- `docs/linux-user-setup.md`
+- `docs/register-action-with-edmc-hotkeys.md`
+
+Tasks:
+- Add/update implementation notes mapping current code paths to spec sections.
+- Cross-link guardrail-related docs so maintenance flow is obvious.
+- Record Phase 2 outcomes in `IMPLEMENTATION_PLAN.md` with test results.
+- Verify no conflicting guidance remains between architecture notes and rollout spec.
+
+Acceptance criteria:
+- Spec-to-doc links are complete and non-contradictory.
+- `IMPLEMENTATION_PLAN.md` includes Phase 2 execution notes and validation results.
+- Contributors can follow doc links end-to-end without ambiguity.
+
+Tests to run:
+- `source .venv/bin/activate && make check`
+- `source .venv/bin/activate && python -m pytest`
+
+Risk and rollback:
+- Risk: documentation churn obscures stable guidance.
+- Rollback: preserve a concise normative core and move operational detail to dedicated docs.
+
+Phase 2 done definition:
+- Stages `2.1` through `2.3` marked `Completed`.
+- Phase 2 status updated to `Completed`.
+- Phase 2 implementation summary added to `docs/plans/IMPLEMENTATION_PLAN.md` with executed commands and outcomes.
+
+## 11.4 Phase 2 Implementation Results
+- Added canonical feature-flag reference doc: `docs/feature-flags.md`.
+- Updated architecture/setup/action docs to reference the canonical feature-flag doc instead of duplicating flag defaults/semantics:
+  - `docs/requirements-architecture-notes.md`
+  - `docs/linux-user-setup.md`
+  - `docs/register-action-with-edmc-hotkeys.md`
+- Expanded manual QA guardrails with explicit pass/fail criteria and manual-only checks in `docs/manual-qa-checklist.md`.
+- Added deterministic dispatch-pump lifecycle tests:
+  - idempotent scheduling when already scheduled.
+  - safe stop behavior when no callback is scheduled.
+  - implemented in `tests/test_phase6_smoke.py`.
+- Verification run:
+  - `source .venv/bin/activate && python -m pytest -k "feature or backend"` (`28 passed, 48 deselected`)
+  - `source .venv/bin/activate && python -m pytest tests/test_phase6_smoke.py tests/test_hotkey_plugin.py` (`18 passed`)
+  - `source .venv/bin/activate && make test` (`76 passed`)
+  - `source .venv/bin/activate && make check` (passed)
+  - `source .venv/bin/activate && python -m pytest` (`76 passed`)
+
+## 11.5 Phase 3 Detailed Execution Plan
+
+Scope:
+- Implement Wayland backend work behind the existing backend contract.
+- Keep core + X11 behavior stable while adding concrete Wayland runtime capability.
+
+Out of scope:
+- Windows backend changes.
+- Public API changes in `load.py` or action registration interfaces.
+- Compositor-specific integrations outside the portal path.
+
+Execution order:
+1. Complete 3.1 before 3.2.
+2. Complete 3.2 before 3.3.
+
+### Stage 3.1 — Implement a Concrete XDG GlobalShortcuts Portal Client
+Objective:
+- Replace `NullPortalClient` default behavior with a concrete portal client implementation behind `PortalClient`.
+
+Touch points:
+- `edmc_hotkeys/backends/wayland.py`
+- `edmc_hotkeys/backends/selector.py`
+- `edmc_hotkeys/backends/__init__.py`
+- `docs/linux-user-setup.md`
+- `docs/requirements-architecture-notes.md`
+
+Tasks:
+- Add a concrete portal client module/class implementing the existing `PortalClient` protocol.
+- Keep the Wayland backend wrapper thin and protocol-driven (no business logic in adapter).
+- Ensure clean start/stop/register/unregister lifecycle behavior with explicit failure returns.
+- Preserve current capability declaration behavior unless validated otherwise.
+- Keep a safe fallback path to disabled behavior when portal support is missing.
+
+Acceptance criteria:
+- Wayland backend can report available and register hotkeys when portal client is operational.
+- Wayland backend remains non-fatal and explicit when portal client is unavailable.
+- No core policy logic is moved from `load.py`/core modules into the Wayland adapter.
+
+Tests to run:
+- `source .venv/bin/activate && python -m pytest tests/test_backends.py -k "wayland"`
+- `source .venv/bin/activate && python -m pytest`
+
+Risk and rollback:
+- Risk: portal lifecycle/runtime edge cases can create non-deterministic startup behavior.
+- Rollback: keep `NullPortalClient` as fallback default and guard new client activation behind availability checks.
+
+### Stage 3.2 — Add Diagnostics and Runtime-State Coverage for Wayland
+Objective:
+- Make Wayland runtime behavior observable and testable across available/unavailable/partial support states.
+
+Touch points:
+- `edmc_hotkeys/backends/wayland.py`
+- `docs/linux-user-setup.md`
+- `docs/manual-qa-checklist.md`
+- `tests/test_backends.py`
+- `tests/test_phase6_smoke.py`
+
+Tasks:
+- Standardize Wayland diagnostics for:
+  - portal availability detection
+  - registration failures
+  - callback/runtime listener errors
+- Add tests for key runtime-state branches (available, unavailable, registration failure, start failure).
+- Update Linux setup and manual QA docs with expected log signatures and troubleshooting flow.
+
+Acceptance criteria:
+- Wayland logs are explicit enough to diagnose why hotkeys are or are not active.
+- Automated tests cover deterministic runtime-state transitions.
+- Manual docs align with implemented diagnostics and expected behavior.
+
+Tests to run:
+- `source .venv/bin/activate && python -m pytest tests/test_backends.py -k "wayland"`
+- `source .venv/bin/activate && python -m pytest tests/test_phase6_smoke.py -k "backend or dispatch"`
+- `source .venv/bin/activate && make check`
+
+Risk and rollback:
+- Risk: noisy diagnostics obscure actionable signals.
+- Rollback: reduce to structured, single-line reason logs for each failure category.
+
+### Stage 3.3 — Revalidate Tier Support Boundaries for Wayland
+Objective:
+- Confirm and document realistic Tier 1/Tier 2 Wayland support after portal validation.
+
+Touch points:
+- `docs/plans/CROSS_PLATFORM_COMPLEXITY_MINIMIZATION_SPEC.md`
+- `docs/requirements-architecture-notes.md`
+- `docs/register-action-with-edmc-hotkeys.md`
+- `tests/test_phase7_side_specific.py`
+
+Tasks:
+- Reassess Wayland capability flags from observed behavior and tests.
+- Confirm whether side-specific modifiers remain unsupported and how policy should present that.
+- Update docs to reflect final validated support matrix and user expectations.
+- Add/adjust tests for capability-gated behavior if tier assumptions change.
+
+Acceptance criteria:
+- Wayland capability claims in code and docs match tested behavior.
+- Tier gating outcomes are deterministic and user-visible.
+- No contradictory statements remain across spec/architecture/action docs.
+
+Tests to run:
+- `source .venv/bin/activate && python -m pytest tests/test_phase7_side_specific.py tests/test_backends.py -k "wayland or side_specific"`
+- `source .venv/bin/activate && python -m pytest`
+
+Risk and rollback:
+- Risk: overpromising Wayland capability beyond what portal/runtime reliably supports.
+- Rollback: keep conservative capability flags and explicit auto-disable policy until broader validation is complete.
+
+Phase 3 done definition:
+- Stages `3.1` through `3.3` marked `Completed`.
+- Phase 3 status updated to `Completed`.
+- Phase 3 implementation summary added to `docs/plans/IMPLEMENTATION_PLAN.md` with executed commands and outcomes.
+
+## 11.6 Phase 3 Implementation Results
+- Implemented a concrete Wayland portal client stack in `edmc_hotkeys/backends/wayland.py`:
+  - `PortalGlobalShortcutsClient` concrete `PortalClient` implementation.
+  - `DbusNextPortalService` runtime implementation using `dbus-next` + XDG Desktop Portal `GlobalShortcuts`.
+  - asynchronous session/create-bind lifecycle with explicit failure handling.
+- Preserved thin-adapter boundaries:
+  - `WaylandPortalBackend` remains contract-driven and delegates portal operations through `PortalClient`.
+  - core capability policy remains in startup/settings paths outside backend adapters.
+- Standardized Wayland diagnostics in backend wrapper:
+  - unavailable reason logs at startup/register paths.
+  - explicit registration failure logs with backend/binding details.
+- Expanded Wayland backend coverage in `tests/test_backends.py`:
+  - concrete client delegation test via injected fake portal service.
+  - unavailable/start failure diagnostic behavior.
+  - registration failure diagnostic behavior.
+- Revalidated tier-support boundary:
+  - Wayland backend still advertises `supports_side_specific_modifiers=False`.
+  - docs remain aligned that side-specific modifiers are unsupported on Wayland and are auto-disabled by core policy.
+- Verification run:
+  - `source .venv/bin/activate && python -m pytest tests/test_backends.py -k "wayland"` passed (`7 passed, 16 deselected`).
+  - `source .venv/bin/activate && python -m pytest tests/test_phase6_smoke.py -k "backend or dispatch"` passed (`6 passed, 4 deselected`).
+  - `source .venv/bin/activate && make check` passed (`79 passed`; lint + compileall passed).
+  - `source .venv/bin/activate && python -m pytest` passed (`79 passed`).
+
 ## 12. Implementation Notes for This Repository
 - Keep `load.py` as the only EDMC entry point.
 - Keep backend selection in `edmc_hotkeys/backends/selector.py`; no platform branches outside selector/backends.
 - Keep capability gating in core startup/settings flow.
-- Keep wayland backend wrapper thin; any future portal client implementation must be injected behind the existing protocol boundary.
+- Keep wayland backend wrapper thin; portal runtime implementation must remain injected behind the existing protocol boundary.
+- Keep runtime flag documentation centralized in `docs/feature-flags.md`.
+- Keep release/runtime validation aligned with `docs/manual-qa-checklist.md`.
+- Keep architecture intent and user setup linked through:
+  - `docs/requirements-architecture-notes.md`
+  - `docs/linux-user-setup.md`
+  - `docs/register-action-with-edmc-hotkeys.md`
 
 ## 13. Decision Record
 - Accepted: platform differences are adapter-level concerns.

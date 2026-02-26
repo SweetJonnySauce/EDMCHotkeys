@@ -104,13 +104,19 @@
 - Linux Wayland: use XDG Desktop Portal GlobalShortcuts (no privileged fallback yet).
 - No privileged/evdev fallback at this stage.
 
+## Feature Flags
+- Runtime feature flags are tracked in one canonical reference: `docs/feature-flags.md`.
+- Do not duplicate default values or removal criteria in other docs; reference the canonical file instead.
+
 ## Backend Selection Strategy (Normative)
 - Linux session detection: use `XDG_SESSION_TYPE`, `WAYLAND_DISPLAY`, and `DISPLAY`.
-- Wayland: use XDG Desktop Portal GlobalShortcuts only. Side-specific modifier bindings are unsupported and are auto-disabled with diagnostics.
+- Wayland: use XDG Desktop Portal GlobalShortcuts only.
+  - key-only and generic modifier bindings are Tier 1-compatible.
+  - side-specific modifier bindings are unsupported and are auto-disabled with diagnostics.
 - X11: use a hybrid in-process backend (`python-xlib`):
-  - passive grabs for non-side-specific bindings.
+  - passive grabs for generic/non-side-specific bindings.
   - keymap polling + side-aware matching for side-specific bindings.
-- Windows: use `RegisterHotKey` for non-side-specific paths; side-specific matching is handled by a low-level hook path gated by `EDMC_HOTKEYS_ENABLE_WINDOWS_LOW_LEVEL_HOOK=1`.
+- Windows: use `RegisterHotKey` for non-side-specific paths; side-specific behavior is currently feature-gated (see `docs/feature-flags.md`).
 
 ## Linux X11 Backend Proposal
 - Use a pure-Python X11 client (likely `python-xlib`) to avoid compiled dependencies in packaged EDMC.
@@ -126,7 +132,9 @@
   - `active_profile`: string, default "Default"
   - `profiles`: map of profile name -> list of bindings
   - binding fields: `id`, `plugin`, `modifiers`, `key`, `action_id`, `payload` (optional), `enabled` (bool)
-  - canonical modifier tokens: `ctrl_l`, `ctrl_r`, `alt_l`, `alt_r`, `shift_l`, `shift_r`, `win_l`, `win_r`
+  - canonical modifier tokens (generic): `ctrl`, `alt`, `shift`, `win`
+  - canonical modifier tokens (side-specific): `ctrl_l`, `ctrl_r`, `alt_l`, `alt_r`, `shift_l`, `shift_r`, `win_l`, `win_r`
+  - invalid mixed-family examples: `ctrl + ctrl_l`, `shift + shift_r`
   - key token examples: `a`, `1`, `f10`, `esc`, `tab`, `enter`, `space`
 - Reserve profile switching action: `edmc_hotkeys.profile.set` with `profile_name` parameter.
 - Initialization:
@@ -149,3 +157,4 @@
 - Packaged EDMC dependency bundling plan: `docs/packaged-edmc-dependency-bundling.md`
 - Linux user setup (Wayland portal, X11): `docs/linux-user-setup.md`
 - Manual QA checklist: `docs/manual-qa-checklist.md`
+- Runtime feature flags: `docs/feature-flags.md`

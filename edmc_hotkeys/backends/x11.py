@@ -195,15 +195,18 @@ class PythonXlibClient:
             self._logger.warning("Unsupported X11 hotkey '%s'", hotkey)
             return False
         keycode, modifiers = result
+        requires_side_specific = any(_is_side_specific_modifier(token) for token in parsed.modifiers)
 
         # Side-specific bindings are evaluated via keymap polling to avoid
         # passive-grab delivery variance across X11 setups.
-        if parsed.modifiers:
+        if requires_side_specific:
+            required_modifiers = parsed.modifiers
             grab_modifiers: tuple[int, ...] = ()
         else:
+            required_modifiers = ()
             grab_modifiers = _registration_grab_modifiers(
                 modifiers_mask=modifiers,
-                required_modifiers=parsed.modifiers,
+                required_modifiers=required_modifiers,
             )
             if not grab_modifiers:
                 self._logger.warning("No X11 grab modifiers resolved for hotkey '%s'", hotkey)
@@ -214,7 +217,7 @@ class PythonXlibClient:
         self._registrations[binding_id] = _X11Registration(
             keycode=keycode,
             modifiers_mask=modifiers,
-            required_modifiers=parsed.modifiers,
+            required_modifiers=required_modifiers,
             grab_modifiers=grab_modifiers,
         )
         if grab_modifiers:
@@ -368,14 +371,16 @@ def _load_python_xlib_modules() -> Optional[dict[str, object]]:
 
 def _to_x11_key(X: object, XK: object, display: object, modifiers: tuple[str, ...], key: str) -> Optional[tuple[int, int]]:
     mod_mask = 0
-    if any(token.startswith("shift_") for token in modifiers):
-        mod_mask |= int(X.ShiftMask)
-    if any(token.startswith("ctrl_") for token in modifiers):
-        mod_mask |= int(X.ControlMask)
-    if any(token.startswith("alt_") for token in modifiers):
-        mod_mask |= int(X.Mod1Mask)
-    if any(token.startswith("win_") for token in modifiers):
-        mod_mask |= int(X.Mod4Mask)
+    for token in modifiers:
+        group = _modifier_group_for_token(token)
+        if group == "shift":
+            mod_mask |= int(X.ShiftMask)
+        elif group == "ctrl":
+            mod_mask |= int(X.ControlMask)
+        elif group == "alt":
+            mod_mask |= int(X.Mod1Mask)
+        elif group == "win":
+            mod_mask |= int(X.Mod4Mask)
 
     keysym_token = _to_x11_keysym_token(key)
     if keysym_token is None:
@@ -565,15 +570,19 @@ def _registration_grab_modifiers(*, modifiers_mask: int, required_modifiers: tup
 
 
 def _modifier_group_for_token(token: str) -> str | None:
-    if token.startswith("ctrl_"):
+    if token == "ctrl" or token.startswith("ctrl_"):
         return "ctrl"
-    if token.startswith("alt_"):
+    if token == "alt" or token.startswith("alt_"):
         return "alt"
-    if token.startswith("shift_"):
+    if token == "shift" or token.startswith("shift_"):
         return "shift"
-    if token.startswith("win_"):
+    if token == "win" or token.startswith("win_"):
         return "win"
     return None
+
+
+def _is_side_specific_modifier(token: str) -> bool:
+    return token.endswith("_l") or token.endswith("_r")
 
 
 def _modifier_mask_for_token(token: str) -> int | None:
