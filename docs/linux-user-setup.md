@@ -47,16 +47,44 @@ Expected result with current implementation:
 Use this when GNOME Wayland does not expose `org.freedesktop.portal.GlobalShortcuts`.
 
 1. Start EDMC with bridge mode enabled:
-   - `EDMC_HOTKEYS_GNOME_BRIDGE=1 EDMarketConnector`
+   - `EDMC_HOTKEYS_BACKEND_MODE=wayland_gnome_bridge EDMC_HOTKEYS_GNOME_BRIDGE=1 EDMarketConnector`
 2. Optional socket override:
-   - `EDMC_HOTKEYS_GNOME_BRIDGE_SOCKET=/tmp/edmc_hotkeys_gnome_bridge.sock`
+   - `EDMC_HOTKEYS_GNOME_BRIDGE_SOCKET=/abs/path/bridge.sock`
 3. Keep sender auto-sync enabled (default):
    - `EDMC_HOTKEYS_GNOME_BRIDGE_AUTOSYNC=1`
+4. Default secure runtime location (if no socket override):
+   - `$XDG_RUNTIME_DIR/edmc_hotkeys/bridge.sock`
+   - token file: `$XDG_RUNTIME_DIR/edmc_hotkeys/sender.token`
+5. Use hardened sender payloads (default):
+   - `scripts/gnome_bridge_send.py --socket "$XDG_RUNTIME_DIR/edmc_hotkeys/bridge.sock" --token-file "$XDG_RUNTIME_DIR/edmc_hotkeys/sender.token" --binding-id <id>`
 
 Expected result:
 - `EDMC-Hotkeys` selects backend `linux-wayland-gnome-bridge`.
 - Active bridge bindings are auto-synced into GNOME custom keybindings.
 - Changing bindings in EDMC-Hotkeys updates GNOME shortcuts automatically.
+- Runtime diagnostics expose explicit hardening failure classes (`auth_reject`, `replay_reject`, `malformed_reject`, `rate_limit_drop`, `queue_drop`).
+
+### GNOME Companion Extension/Helper Setup (Phase 3 Optional Track)
+Use this when validating the extension -> helper -> plugin bridge architecture.
+
+1. Install companion artifacts:
+   - `./scripts/install_gnome_bridge_companion.sh --enable`
+2. Verify install:
+   - `./scripts/verify_gnome_bridge_companion.sh`
+3. Export current plugin bindings into companion config:
+   - `./scripts/export_companion_bindings.py --bindings ./bindings.json --output ~/.config/edmc-hotkeys/companion-bindings.json`
+4. Restart GNOME Shell extension/session if needed, then test key activation.
+5. Roll back companion artifacts:
+   - `./scripts/uninstall_gnome_bridge_companion.sh`
+
+Companion compatibility matrix:
+- [gnome-companion-compatibility-matrix.md](/home/jon/edmc_plugins/EDMC-Hotkeys/docs/gnome-companion-compatibility-matrix.md)
+Companion QA matrix:
+- [GNOME_WAYLAND_BRIDGE_PHASE4_QA_MATRIX.md](/home/jon/edmc_plugins/EDMC-Hotkeys/docs/qa/GNOME_WAYLAND_BRIDGE_PHASE4_QA_MATRIX.md)
+Phase 5 rollout artifacts:
+- [GNOME_WAYLAND_BRIDGE_ALPHA_ROLLOUT_CHECKLIST.md](/home/jon/edmc_plugins/EDMC-Hotkeys/docs/release/GNOME_WAYLAND_BRIDGE_ALPHA_ROLLOUT_CHECKLIST.md)
+- [GNOME_WAYLAND_BRIDGE_ISSUE_TRIAGE_TEMPLATE.md](/home/jon/edmc_plugins/EDMC-Hotkeys/docs/release/GNOME_WAYLAND_BRIDGE_ISSUE_TRIAGE_TEMPLATE.md)
+- [GNOME_WAYLAND_BRIDGE_GA_DECISION_RECORD.md](/home/jon/edmc_plugins/EDMC-Hotkeys/docs/release/GNOME_WAYLAND_BRIDGE_GA_DECISION_RECORD.md)
 
 ### Tier 1 Modifier Guidance (Wayland)
 - Tier 1 (Wayland portal/bridge) supports:

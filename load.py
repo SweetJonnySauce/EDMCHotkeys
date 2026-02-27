@@ -37,13 +37,17 @@ _DISPATCH_PUMP_INTERVAL_MS = 50
 _dispatch_pump_owner: Optional[object] = None
 _dispatch_pump_after_id: Optional[object] = None
 _prefs_apply_guard_installed = False
+_BACKEND_MODE_ENV = "EDMC_HOTKEYS_BACKEND_MODE"
+_BACKEND_MODE_CONFIG_KEY = "edmc_hotkeys_backend_mode"
+_VALID_BACKEND_MODES = {"auto", "wayland_portal", "wayland_gnome_bridge", "x11"}
 
 
 def plugin_start3(plugin_dir: str) -> str:
     """EDMC plugin start hook."""
     global _plugin, _bindings_store, _bindings_document
     plugin_path = Path(plugin_dir)
-    _plugin = HotkeyPlugin(plugin_dir=plugin_path, logger=logger)
+    selected_backend_mode = _resolve_backend_mode()
+    _plugin = HotkeyPlugin(plugin_dir=plugin_path, logger=logger, backend_mode=selected_backend_mode)
     _install_prefs_apply_guard()
 
     _bindings_store = BindingsStore(plugin_path / "bindings.json", logger=logger)
@@ -63,6 +67,48 @@ def plugin_start3(plugin_dir: str) -> str:
     _plugin.start()
     _ensure_dispatch_pump_running()
     return plugin_name
+
+
+def _resolve_backend_mode() -> str:
+    env_mode = os.environ.get(_BACKEND_MODE_ENV, "").strip().lower()
+    if env_mode:
+        if env_mode in _VALID_BACKEND_MODES:
+            return env_mode
+        logger.warning("Invalid backend mode in %s='%s'; falling back to auto", _BACKEND_MODE_ENV, env_mode)
+        return "auto"
+
+    # Prefer EDMC config when available; keep fallback safe for tests/runtime without config module.
+    try:
+        import config  # type: ignore
+    except Exception:
+        return "auto"
+
+    getter = getattr(config, "get_str", None)
+    if not callable(getter):
+        return "auto"
+
+    configured: str = ""
+    try:
+        configured = str(getter(_BACKEND_MODE_CONFIG_KEY) or "")
+    except TypeError:
+        # EDMC version differences may expose default parameter in get_str.
+        try:
+            configured = str(getter(_BACKEND_MODE_CONFIG_KEY, default="") or "")
+        except Exception:
+            configured = ""
+    except Exception:
+        configured = ""
+
+    configured_mode = configured.strip().lower()
+    if configured_mode in _VALID_BACKEND_MODES:
+        return configured_mode
+    if configured_mode:
+        logger.warning(
+            "Invalid backend mode in config key '%s': '%s'; falling back to auto",
+            _BACKEND_MODE_CONFIG_KEY,
+            configured_mode,
+        )
+    return "auto"
 
 
 def plugin_stop() -> None:

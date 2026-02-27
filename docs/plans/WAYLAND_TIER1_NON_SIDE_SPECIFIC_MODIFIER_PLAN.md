@@ -868,7 +868,7 @@ Files updated:
 - `docs/manual-qa-checklist.md`
 - `docs/register-action-with-edmc-hotkeys.md`
 - `docs/requirements-architecture-notes.md`
-- `docs/release-notes.md` (new)
+- `RELEASE_NOTES.md` (new)
 
 Documentation updates delivered:
 - Added explicit Tier 1/Tier 2 modifier guidance and migration examples.
@@ -877,7 +877,7 @@ Documentation updates delivered:
 - Added release note entry summarizing behavior change and user impact.
 
 Validation commands executed:
-1. `rg -n "Ctrl\\+|LCtrl\\+|Tier 1|Tier 2|side-specific|generic" docs/linux-user-setup.md docs/manual-qa-checklist.md docs/register-action-with-edmc-hotkeys.md docs/requirements-architecture-notes.md docs/release-notes.md`
+1. `rg -n "Ctrl\\+|LCtrl\\+|Tier 1|Tier 2|side-specific|generic" docs/linux-user-setup.md docs/manual-qa-checklist.md docs/register-action-with-edmc-hotkeys.md docs/requirements-architecture-notes.md RELEASE_NOTES.md`
    - Result: expected Tier policy references present across updated docs.
 2. `source .venv/bin/activate && python -m pytest tests/test_phase7_side_specific.py tests/test_settings_state.py`
    - Result: `20 passed`

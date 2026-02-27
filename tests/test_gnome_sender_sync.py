@@ -45,10 +45,13 @@ def test_hotkey_to_gnome_accelerator_mappings() -> None:
 def test_sender_sync_updates_managed_paths_and_commands(tmp_path) -> None:
     fake = _FakeGSettings()
     sender_script = tmp_path / "send.py"
+    token_file = tmp_path / "sender.token"
+    token_file.write_text("token-value\n", encoding="utf-8")
     sender_script.write_text("#!/usr/bin/env python3\n", encoding="utf-8")
     sync = GnomeBridgeSenderSync(
         socket_path=str(tmp_path / "bridge.sock"),
         sender_script_path=str(sender_script),
+        token_file_path=str(token_file),
         logger=logging.getLogger("test.sender_sync"),
         run_command=fake.run,
         gsettings_bin="python3",
@@ -71,6 +74,7 @@ def test_sender_sync_updates_managed_paths_and_commands(tmp_path) -> None:
     command_entries = [(schema, key, value) for (schema, key), value in fake.entry_values.items() if key == "command"]
     assert command_entries
     assert all(str(Path(sender_script)) in value for _schema, _key, value in command_entries)
+    assert all(f"--token-file {token_file}" in value for _schema, _key, value in command_entries)
 
 
 def test_sender_sync_skips_duplicate_and_unsupported_bindings(tmp_path) -> None:

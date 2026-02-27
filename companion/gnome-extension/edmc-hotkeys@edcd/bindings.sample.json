@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "bindings": [
+    {
+      "id": "hotkeys_test_toggle",
+      "accelerator": "<Ctrl>m",
+      "enabled": true
+    }
+  ]
+}

@@ -118,15 +118,20 @@ class GnomeBridgeSenderSync:
         *,
         socket_path: str,
         sender_script_path: str,
+        token_file_path: Optional[str] = None,
         logger: Optional[logging.Logger] = None,
         run_command: Optional[RunCommand] = None,
         gsettings_bin: str = "gsettings",
     ) -> None:
         self._socket_path = socket_path
         self._sender_script_path = sender_script_path
+        self._token_file_path = token_file_path
         self._logger = logger or logging.getLogger("EDMC-Hotkeys")
         self._run_command = run_command or _default_run_command
         self._gsettings_bin = gsettings_bin
+
+    def set_token_file_path(self, token_file_path: str) -> None:
+        self._token_file_path = token_file_path
 
     def is_available(self) -> tuple[bool, Optional[str]]:
         executable = shutil.which(self._gsettings_bin)
@@ -204,7 +209,11 @@ class GnomeBridgeSenderSync:
         script = shlex.quote(self._sender_script_path)
         socket_path = shlex.quote(self._socket_path)
         binding = shlex.quote(binding_id)
-        return f"python3 {script} --socket {socket_path} --binding-id {binding}"
+        token_arg = ""
+        if self._token_file_path:
+            token_file = shlex.quote(self._token_file_path)
+            token_arg = f" --token-file {token_file}"
+        return f"python3 {script} --socket {socket_path} --binding-id {binding}{token_arg}"
 
     def _read_custom_keybinding_paths(self) -> Optional[list[str]]:
         code, stdout, stderr = self._run(

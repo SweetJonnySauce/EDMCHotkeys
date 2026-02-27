@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import json
 import logging
 import socket
+import time
 
 from edmc_hotkeys.backends.base import BackendAvailability, NullHotkeyBackend
 from edmc_hotkeys.backends.gnome_bridge import GnomeWaylandBridgeBackend
 from edmc_hotkeys.backends.gnome_sender_sync import SyncResult
-from edmc_hotkeys.backends.selector import detect_linux_session, gnome_bridge_enabled, select_backend
+from edmc_hotkeys.backends.selector import backend_mode, detect_linux_session, gnome_bridge_enabled, select_backend
 from edmc_hotkeys.backends.wayland import (
     DbusNextPortalService,
     PortalGlobalShortcutsClient,
@@ -274,6 +276,27 @@ class _FakeSenderSync:
         return SyncResult(ok=True, synced_bindings=0, error=None)
 
 
+def _v1_payload(
+    *,
+    binding_id: str,
+    token: str,
+    nonce: str,
+    timestamp_ms: int | None = None,
+    sender_id: str = "test-sender",
+) -> bytes:
+    return json.dumps(
+        {
+            "version": "1",
+            "type": "activate",
+            "binding_id": binding_id,
+            "timestamp_ms": int(time.time() * 1000) if timestamp_ms is None else timestamp_ms,
+            "nonce": nonce,
+            "token": token,
+            "sender_id": sender_id,
+        }
+    ).encode("utf-8")
+
+
 def test_detect_linux_session_wayland_from_session_type() -> None:
     assert detect_linux_session({"XDG_SESSION_TYPE": "wayland"}) == "wayland"
 
@@ -318,6 +341,37 @@ def test_gnome_bridge_enabled_true_and_false_values() -> None:
     assert gnome_bridge_enabled({"EDMC_HOTKEYS_GNOME_BRIDGE": "true"})
     assert not gnome_bridge_enabled({})
     assert not gnome_bridge_enabled({"EDMC_HOTKEYS_GNOME_BRIDGE": "0"})
+
+
+def test_backend_mode_defaults_to_auto() -> None:
+    assert backend_mode({}) == "auto"
+
+
+def test_backend_mode_invalid_falls_back_to_auto() -> None:
+    assert backend_mode({"EDMC_HOTKEYS_BACKEND_MODE": "invalid"}) == "auto"
+
+
+def test_select_backend_respects_explicit_wayland_bridge_mode() -> None:
+    bridge_backend = _FakeBackend("wayland-bridge")
+    selected = select_backend(
+        logger=logging.getLogger("test.backends"),
+        platform_name="linux",
+        environ={"XDG_SESSION_TYPE": "wayland"},
+        gnome_bridge_backend=bridge_backend,
+        backend_mode_override="wayland_gnome_bridge",
+    )
+    assert selected is bridge_backend
+
+
+def test_select_backend_rejects_explicit_x11_mode_on_wayland() -> None:
+    selected = select_backend(
+        logger=logging.getLogger("test.backends"),
+        platform_name="linux",
+        environ={"XDG_SESSION_TYPE": "wayland"},
+        backend_mode_override="x11",
+    )
+    assert isinstance(selected, NullHotkeyBackend)
+    assert "requires an X11 session" in (selected.availability().reason or "")
 
 
 def test_select_backend_x11_strategy() -> None:
@@ -615,13 +669,18 @@ def test_gnome_bridge_backend_unavailable_without_feature_flag(tmp_path) -> None
     assert "EDMC_HOTKEYS_GNOME_BRIDGE" in (availability.reason or "")
 
 
-def test_gnome_bridge_backend_dispatches_registered_binding(tmp_path) -> None:
+def test_gnome_bridge_backend_dispatches_registered_binding_with_v1_payload(tmp_path) -> None:
     socket_path = str(tmp_path / "bridge.sock")
     fake_socket = _FakeBridgeSocket()
+    token = "test-token"
     backend = GnomeWaylandBridgeBackend(
         logger=logging.getLogger("test.backends"),
         platform_name="linux",
-        environ={"WAYLAND_DISPLAY": "wayland-0", "EDMC_HOTKEYS_GNOME_BRIDGE": "1"},
+        environ={
+            "WAYLAND_DISPLAY": "wayland-0",
+            "EDMC_HOTKEYS_GNOME_BRIDGE": "1",
+            "EDMC_HOTKEYS_GNOME_BRIDGE_TOKEN": token,
+        },
         socket_path=socket_path,
         socket_factory=lambda: fake_socket,
     )
@@ -630,13 +689,15 @@ def test_gnome_bridge_backend_dispatches_registered_binding(tmp_path) -> None:
     assert backend.start(callbacks.append) is True
     assert backend.register_hotkey("binding-1", "Ctrl+Alt+H") is True
 
-    backend._process_payload(b"binding-1")
+    backend._process_payload(
+        _v1_payload(binding_id="binding-1", token=token, nonce="nonce-1")
+    )
 
     backend.stop()
     assert callbacks == ["binding-1"]
 
 
-def test_gnome_bridge_backend_accepts_json_payload(tmp_path) -> None:
+def test_gnome_bridge_backend_rejects_legacy_json_payload_in_hardened_mode(tmp_path) -> None:
     socket_path = str(tmp_path / "bridge.sock")
     fake_socket = _FakeBridgeSocket()
     backend = GnomeWaylandBridgeBackend(
@@ -652,9 +713,37 @@ def test_gnome_bridge_backend_accepts_json_payload(tmp_path) -> None:
     assert backend.register_hotkey("binding-json", "Ctrl+Alt+J") is True
 
     backend._process_payload(b'{"binding_id":"binding-json"}')
+    status = backend.runtime_status()
 
     backend.stop()
-    assert callbacks == ["binding-json"]
+    assert callbacks == []
+    assert status["malformed_reject"] == 1
+
+
+def test_gnome_bridge_backend_accepts_legacy_payload_when_compat_mode_enabled(tmp_path) -> None:
+    socket_path = str(tmp_path / "bridge.sock")
+    fake_socket = _FakeBridgeSocket()
+    backend = GnomeWaylandBridgeBackend(
+        logger=logging.getLogger("test.backends"),
+        platform_name="linux",
+        environ={
+            "WAYLAND_DISPLAY": "wayland-0",
+            "EDMC_HOTKEYS_GNOME_BRIDGE": "1",
+            "EDMC_HOTKEYS_GNOME_BRIDGE_ALLOW_LEGACY": "1",
+            "EDMC_HOTKEYS_GNOME_BRIDGE_HARDENED": "0",
+        },
+        socket_path=socket_path,
+        socket_factory=lambda: fake_socket,
+    )
+    callbacks: list[str] = []
+
+    assert backend.start(callbacks.append) is True
+    assert backend.register_hotkey("binding-legacy", "Ctrl+Alt+J") is True
+
+    backend._process_payload(b'{"binding_id":"binding-legacy"}')
+
+    backend.stop()
+    assert callbacks == ["binding-legacy"]
 
 
 def test_gnome_bridge_backend_autosync_status_and_runtime_snapshot(tmp_path) -> None:
@@ -735,6 +824,296 @@ def test_gnome_bridge_backend_warns_when_no_sender_events_seen(caplog, tmp_path)
     backend.stop()
 
     assert "receiver active but no companion events observed yet" in caplog.text
+
+
+def test_gnome_bridge_backend_rejects_invalid_token(tmp_path) -> None:
+    socket_path = str(tmp_path / "bridge.sock")
+    fake_socket = _FakeBridgeSocket()
+    backend = GnomeWaylandBridgeBackend(
+        logger=logging.getLogger("test.backends"),
+        platform_name="linux",
+        environ={
+            "WAYLAND_DISPLAY": "wayland-0",
+            "EDMC_HOTKEYS_GNOME_BRIDGE": "1",
+            "EDMC_HOTKEYS_GNOME_BRIDGE_TOKEN": "good-token",
+        },
+        socket_path=socket_path,
+        socket_factory=lambda: fake_socket,
+    )
+    callbacks: list[str] = []
+
+    assert backend.start(callbacks.append) is True
+    assert backend.register_hotkey("binding-auth", "Ctrl+M") is True
+
+    backend._process_payload(
+        _v1_payload(binding_id="binding-auth", token="bad-token", nonce="nonce-auth")
+    )
+    status = backend.runtime_status()
+    backend.stop()
+
+    assert callbacks == []
+    assert status["auth_reject"] == 1
+
+
+def test_gnome_bridge_backend_rejects_missing_token(tmp_path) -> None:
+    socket_path = str(tmp_path / "bridge.sock")
+    fake_socket = _FakeBridgeSocket()
+    backend = GnomeWaylandBridgeBackend(
+        logger=logging.getLogger("test.backends"),
+        platform_name="linux",
+        environ={
+            "WAYLAND_DISPLAY": "wayland-0",
+            "EDMC_HOTKEYS_GNOME_BRIDGE": "1",
+            "EDMC_HOTKEYS_GNOME_BRIDGE_TOKEN": "required-token",
+        },
+        socket_path=socket_path,
+        socket_factory=lambda: fake_socket,
+    )
+    callbacks: list[str] = []
+
+    assert backend.start(callbacks.append) is True
+    assert backend.register_hotkey("binding-auth-missing", "Ctrl+M") is True
+
+    backend._process_payload(
+        _v1_payload(binding_id="binding-auth-missing", token="", nonce="nonce-auth-missing")
+    )
+    status = backend.runtime_status()
+    backend.stop()
+
+    assert callbacks == []
+    assert status["auth_reject"] == 1
+
+
+def test_gnome_bridge_backend_rejects_replayed_nonce(tmp_path) -> None:
+    socket_path = str(tmp_path / "bridge.sock")
+    fake_socket = _FakeBridgeSocket()
+    token = "test-token"
+    backend = GnomeWaylandBridgeBackend(
+        logger=logging.getLogger("test.backends"),
+        platform_name="linux",
+        environ={
+            "WAYLAND_DISPLAY": "wayland-0",
+            "EDMC_HOTKEYS_GNOME_BRIDGE": "1",
+            "EDMC_HOTKEYS_GNOME_BRIDGE_TOKEN": token,
+        },
+        socket_path=socket_path,
+        socket_factory=lambda: fake_socket,
+    )
+    callbacks: list[str] = []
+
+    assert backend.start(callbacks.append) is True
+    assert backend.register_hotkey("binding-replay", "Ctrl+M") is True
+    now_ms = int(time.time() * 1000)
+    first = _v1_payload(binding_id="binding-replay", token=token, nonce="same-nonce", timestamp_ms=now_ms)
+    second = _v1_payload(binding_id="binding-replay", token=token, nonce="same-nonce", timestamp_ms=now_ms)
+
+    backend._process_payload(first)
+    backend._process_payload(second)
+    status = backend.runtime_status()
+    backend.stop()
+
+    assert callbacks == ["binding-replay"]
+    assert status["replay_reject"] == 1
+
+
+def test_gnome_bridge_backend_rejects_stale_timestamp(tmp_path) -> None:
+    socket_path = str(tmp_path / "bridge.sock")
+    fake_socket = _FakeBridgeSocket()
+    token = "test-token"
+    backend = GnomeWaylandBridgeBackend(
+        logger=logging.getLogger("test.backends"),
+        platform_name="linux",
+        environ={
+            "WAYLAND_DISPLAY": "wayland-0",
+            "EDMC_HOTKEYS_GNOME_BRIDGE": "1",
+            "EDMC_HOTKEYS_GNOME_BRIDGE_TOKEN": token,
+        },
+        socket_path=socket_path,
+        socket_factory=lambda: fake_socket,
+    )
+    callbacks: list[str] = []
+
+    assert backend.start(callbacks.append) is True
+    assert backend.register_hotkey("binding-stale", "Ctrl+M") is True
+    stale_ts = int(time.time() * 1000) - 60_000
+    backend._process_payload(
+        _v1_payload(binding_id="binding-stale", token=token, nonce="nonce-stale", timestamp_ms=stale_ts)
+    )
+    status = backend.runtime_status()
+    backend.stop()
+
+    assert callbacks == []
+    assert status["replay_reject"] == 1
+
+
+def test_gnome_bridge_backend_rate_limits_per_sender(tmp_path) -> None:
+    socket_path = str(tmp_path / "bridge.sock")
+    fake_socket = _FakeBridgeSocket()
+    token = "test-token"
+    backend = GnomeWaylandBridgeBackend(
+        logger=logging.getLogger("test.backends"),
+        platform_name="linux",
+        environ={
+            "WAYLAND_DISPLAY": "wayland-0",
+            "EDMC_HOTKEYS_GNOME_BRIDGE": "1",
+            "EDMC_HOTKEYS_GNOME_BRIDGE_TOKEN": token,
+            "EDMC_HOTKEYS_GNOME_BRIDGE_RATE_LIMIT_WINDOW_SECONDS": "60",
+            "EDMC_HOTKEYS_GNOME_BRIDGE_RATE_LIMIT_PER_SENDER": "1",
+            "EDMC_HOTKEYS_GNOME_BRIDGE_RATE_LIMIT_GLOBAL": "10",
+        },
+        socket_path=socket_path,
+        socket_factory=lambda: fake_socket,
+    )
+    callbacks: list[str] = []
+
+    assert backend.start(callbacks.append) is True
+    assert backend.register_hotkey("binding-rate", "Ctrl+M") is True
+
+    backend._process_payload(
+        _v1_payload(binding_id="binding-rate", token=token, nonce="rate-1", sender_id="sender-a")
+    )
+    backend._process_payload(
+        _v1_payload(binding_id="binding-rate", token=token, nonce="rate-2", sender_id="sender-a")
+    )
+    status = backend.runtime_status()
+    backend.stop()
+
+    assert callbacks == ["binding-rate"]
+    assert status["rate_limit_drop"] == 1
+
+
+def test_gnome_bridge_backend_rate_limits_globally_across_senders(tmp_path) -> None:
+    socket_path = str(tmp_path / "bridge.sock")
+    fake_socket = _FakeBridgeSocket()
+    token = "test-token"
+    backend = GnomeWaylandBridgeBackend(
+        logger=logging.getLogger("test.backends"),
+        platform_name="linux",
+        environ={
+            "WAYLAND_DISPLAY": "wayland-0",
+            "EDMC_HOTKEYS_GNOME_BRIDGE": "1",
+            "EDMC_HOTKEYS_GNOME_BRIDGE_TOKEN": token,
+            "EDMC_HOTKEYS_GNOME_BRIDGE_RATE_LIMIT_WINDOW_SECONDS": "60",
+            "EDMC_HOTKEYS_GNOME_BRIDGE_RATE_LIMIT_PER_SENDER": "10",
+            "EDMC_HOTKEYS_GNOME_BRIDGE_RATE_LIMIT_GLOBAL": "1",
+        },
+        socket_path=socket_path,
+        socket_factory=lambda: fake_socket,
+    )
+    callbacks: list[str] = []
+
+    assert backend.start(callbacks.append) is True
+    assert backend.register_hotkey("binding-rate-global", "Ctrl+M") is True
+
+    backend._process_payload(
+        _v1_payload(
+            binding_id="binding-rate-global",
+            token=token,
+            nonce="global-1",
+            sender_id="sender-a",
+        )
+    )
+    backend._process_payload(
+        _v1_payload(
+            binding_id="binding-rate-global",
+            token=token,
+            nonce="global-2",
+            sender_id="sender-b",
+        )
+    )
+    status = backend.runtime_status()
+    backend.stop()
+
+    assert callbacks == ["binding-rate-global"]
+    assert status["rate_limit_drop"] == 1
+
+
+def test_gnome_bridge_backend_queue_drop_counter_tracks_saturation(tmp_path) -> None:
+    socket_path = str(tmp_path / "bridge.sock")
+    fake_socket = _FakeBridgeSocket()
+    backend = GnomeWaylandBridgeBackend(
+        logger=logging.getLogger("test.backends"),
+        platform_name="linux",
+        environ={
+            "WAYLAND_DISPLAY": "wayland-0",
+            "EDMC_HOTKEYS_GNOME_BRIDGE": "1",
+            "EDMC_HOTKEYS_GNOME_BRIDGE_QUEUE_MAX": "16",
+        },
+        socket_path=socket_path,
+        socket_factory=lambda: fake_socket,
+    )
+
+    for _idx in range(17):
+        backend._enqueue_payload(b"payload")
+    status = backend.runtime_status()
+
+    assert status["queue_drop"] == 1
+
+
+def test_gnome_bridge_backend_invalid_json_counts_as_malformed(tmp_path) -> None:
+    socket_path = str(tmp_path / "bridge.sock")
+    fake_socket = _FakeBridgeSocket()
+    backend = GnomeWaylandBridgeBackend(
+        logger=logging.getLogger("test.backends"),
+        platform_name="linux",
+        environ={"WAYLAND_DISPLAY": "wayland-0", "EDMC_HOTKEYS_GNOME_BRIDGE": "1"},
+        socket_path=socket_path,
+        socket_factory=lambda: fake_socket,
+    )
+
+    assert backend.start(lambda _binding_id: None) is True
+    backend._process_payload(b"{invalid-json")
+    status = backend.runtime_status()
+    backend.stop()
+
+    assert status["malformed_reject"] == 1
+
+
+def test_gnome_bridge_backend_restart_resets_runtime_and_dispatches(tmp_path) -> None:
+    socket_path = str(tmp_path / "bridge.sock")
+    token = "test-token"
+    backend = GnomeWaylandBridgeBackend(
+        logger=logging.getLogger("test.backends"),
+        platform_name="linux",
+        environ={
+            "WAYLAND_DISPLAY": "wayland-0",
+            "EDMC_HOTKEYS_GNOME_BRIDGE": "1",
+            "EDMC_HOTKEYS_GNOME_BRIDGE_TOKEN": token,
+        },
+        socket_path=socket_path,
+        socket_factory=lambda: _FakeBridgeSocket(),
+    )
+    callbacks: list[str] = []
+
+    assert backend.start(callbacks.append) is True
+    assert backend.register_hotkey("binding-restart", "Ctrl+M") is True
+    backend._process_payload(
+        _v1_payload(binding_id="binding-restart", token=token, nonce="restart-1")
+    )
+    backend.stop()
+
+    assert backend.start(callbacks.append) is True
+    assert backend.register_hotkey("binding-restart", "Ctrl+M") is True
+    backend._process_payload(
+        _v1_payload(binding_id="binding-restart", token=token, nonce="restart-2")
+    )
+    status = backend.runtime_status()
+    backend.stop()
+
+    assert callbacks == ["binding-restart", "binding-restart"]
+    assert status["events_seen"] == 1
+
+
+def test_gnome_bridge_backend_requires_xdg_runtime_dir_for_default_socket() -> None:
+    backend = GnomeWaylandBridgeBackend(
+        logger=logging.getLogger("test.backends"),
+        platform_name="linux",
+        environ={"WAYLAND_DISPLAY": "wayland-0", "EDMC_HOTKEYS_GNOME_BRIDGE": "1"},
+    )
+
+    availability = backend.availability()
+    assert availability.available is False
+    assert "XDG_RUNTIME_DIR is required" in (availability.reason or "")
 
 
 def test_x11_side_specific_registration_match_is_order_insensitive() -> None:

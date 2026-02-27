@@ -50,6 +50,7 @@ class HotkeyPlugin:
         logger: logging.Logger,
         dispatch_executor: Optional[DispatchExecutor] = None,
         hotkey_backend: Optional[HotkeyBackend] = None,
+        backend_mode: Optional[str] = None,
     ) -> None:
         self._plugin_dir = plugin_dir
         self._logger = logger
@@ -62,7 +63,11 @@ class HotkeyPlugin:
             logger=logger,
             dispatch_executor=self._dispatch_executor,
         )
-        self._hotkey_backend = hotkey_backend or select_backend(logger=logger)
+        self._backend_mode = backend_mode or "auto"
+        self._hotkey_backend = hotkey_backend or select_backend(
+            logger=logger,
+            backend_mode_override=self._backend_mode,
+        )
         contract_issues = backend_contract_issues(self._hotkey_backend)
         if contract_issues:
             self._logger.warning(
@@ -81,7 +86,8 @@ class HotkeyPlugin:
         availability = self._hotkey_backend.availability()
         capabilities = self._hotkey_backend.capabilities()
         self._logger.info(
-            "Hotkey backend selected: name=%s available=%s supports_side_specific_modifiers=%s",
+            "Hotkey backend selected: mode=%s name=%s available=%s supports_side_specific_modifiers=%s",
+            self._backend_mode,
             availability.name,
             availability.available,
             capabilities.supports_side_specific_modifiers,

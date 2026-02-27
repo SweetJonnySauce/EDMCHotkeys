@@ -1,0 +1,171 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Pre-release version (vX.Y.Z-rc.N)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      prerelease: ${{ steps.meta.outputs.prerelease }}
+    steps:
+      - name: Resolve release metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            version="${GITHUB_REF_NAME}"
+            if [[ ! "${version}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "Invalid tag version: ${version}" >&2
+              exit 1
+            fi
+            prerelease="false"
+          else
+            version="${{ github.event.inputs.version }}"
+            if [[ ! "${version}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$ ]]; then
+              echo "Manual-dispatch version must match vX.Y.Z-rc.N" >&2
+              exit 1
+            fi
+            prerelease="true"
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "prerelease=${prerelease}" >> "$GITHUB_OUTPUT"
+
+      - name: Fail if release already exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.meta.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "${VERSION}" >/dev/null 2>&1; then
+            echo "Release already exists for ${VERSION}" >&2
+            exit 1
+          fi
+
+  quality-gate:
+    runs-on: ubuntu-latest
+    needs: prepare
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dev dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+
+      - name: Run release gate checks
+        run: make check
+
+  build-artifacts:
+    runs-on: ubuntu-latest
+    needs: [prepare, quality-gate]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: linux-x11
+            artifact_suffix: linux-x11
+          - variant: linux-wayland
+            artifact_suffix: linux-wayland
+          - variant: linux-wayland-gnome
+            artifact_suffix: linux-wayland-gnome
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build release artifact
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          python -m pip install --upgrade pip
+          python scripts/build_release_artifact.py \
+            --variant "${{ matrix.variant }}" \
+            --version "${VERSION}" \
+            --output-dir dist
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.variant }}
+          path: dist/EDMC-Hotkeys-${{ matrix.artifact_suffix }}-${{ needs.prepare.outputs.version }}.tar.gz
+          if-no-files-found: error
+
+  windows-deferred:
+    runs-on: ubuntu-latest
+    needs: prepare
+    steps:
+      - name: Report Windows artifact status
+        run: |
+          echo "Windows release artifact is deferred in this release workflow."
+
+  publish:
+    runs-on: ubuntu-latest
+    needs: [prepare, build-artifacts, windows-deferred]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download built artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: dist-*
+          path: dist
+          merge-multiple: true
+
+      - name: Verify artifact set and generate checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          ls -lah dist
+          count="$(find dist -maxdepth 1 -type f -name '*.tar.gz' | wc -l | tr -d ' ')"
+          if [[ "${count}" != "3" ]]; then
+            echo "Expected 3 Linux artifacts, found ${count}" >&2
+            exit 1
+          fi
+          sha256sum dist/*.tar.gz > dist/SHA256SUMS.txt
+          cat dist/SHA256SUMS.txt
+
+      - name: Build release notes payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp RELEASE_NOTES.md dist/RELEASE_NOTES.release.md
+          {
+            echo
+            echo "## Platform Status"
+            echo "- Windows artifact: deferred (not included in this release)."
+          } >> dist/RELEASE_NOTES.release.md
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          flags=(--target "${GITHUB_SHA}" --title "${VERSION}" --notes-file dist/RELEASE_NOTES.release.md)
+          if [[ "${PRERELEASE}" == "true" ]]; then
+            flags+=(--prerelease)
+          fi
+          gh release create "${VERSION}" "${flags[@]}" dist/*.tar.gz dist/SHA256SUMS.txt

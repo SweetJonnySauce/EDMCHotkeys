@@ -253,7 +253,7 @@ def test_start_logs_selected_backend_with_capabilities(caplog) -> None:
     with caplog.at_level(logging.INFO):
         plugin.start()
 
-    assert "Hotkey backend selected: name=fake-backend available=True supports_side_specific_modifiers=False" in caplog.text
+    assert "Hotkey backend selected: mode=auto name=fake-backend available=True supports_side_specific_modifiers=False" in caplog.text
     plugin.stop()
 
 

@@ -1,0 +1,12 @@
+{
+  "uuid": "edmc-hotkeys@edcd",
+  "name": "EDMC Hotkeys Companion",
+  "description": "Companion shortcut capture extension for EDMC-Hotkeys bridge backend.",
+  "version": 1,
+  "shell-version": [
+    "45",
+    "46",
+    "47"
+  ],
+  "url": "https://github.com/EDCD/EDMarketConnector"
+}
