@@ -55,8 +55,12 @@ _SESSION_INTROSPECTION_XML = """<node>
 
 @lru_cache(maxsize=3)
 def _parse_introspection_node(xml_data: str) -> Any:
-    from dbus_next import introspection as dbus_introspection
-
+    try:
+        from dbus_next import introspection as dbus_introspection
+    except Exception:
+        # Allow tests to exercise static proxy paths without dbus-next installed.
+        # Real portal usage is gated by availability() which requires dbus-next.
+        return xml_data
     return dbus_introspection.Node.parse(xml_data)
 
 
