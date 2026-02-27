@@ -165,6 +165,7 @@ def _run_vendor_script(workspace_root: Path, script_relpath: str) -> None:
 
     env = dict(os.environ)
     env.setdefault("EDMC_PYTHON", sys.executable)
+    env.setdefault("PYTHONDONTWRITEBYTECODE", "1")
     result = subprocess.run(
         [str(script_path)],
         cwd=str(workspace_root),
@@ -196,6 +197,15 @@ def _prune_scripts(workspace_root: Path, kept_scripts: tuple[str, ...]) -> None:
         scripts_dir.rmdir()
 
 
+def _prune_python_caches(workspace_root: Path) -> None:
+    for cache_dir in workspace_root.rglob("__pycache__"):
+        if cache_dir.is_dir():
+            shutil.rmtree(cache_dir)
+    for pyc in workspace_root.rglob("*.pyc"):
+        if pyc.is_file():
+            pyc.unlink()
+
+
 def apply_variant_policy(workspace_root: Path, spec: VariantSpec) -> None:
     for relpath in GLOBAL_EXCLUDES:
         _remove_path(workspace_root, relpath)
@@ -206,6 +216,7 @@ def apply_variant_policy(workspace_root: Path, spec: VariantSpec) -> None:
         _remove_path(workspace_root, "COMPANION_SETUP.md")
 
     _prune_scripts(workspace_root, spec.kept_scripts)
+    _prune_python_caches(workspace_root)
 
 
 def verify_tree(workspace_root: Path, spec: VariantSpec) -> None:
