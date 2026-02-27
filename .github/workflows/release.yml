@@ -127,7 +127,7 @@ jobs:
         run: |
           set -euo pipefail
           ls -lah dist
-          count="$(find dist -maxdepth 1 -type f \\( -name '*.tar.gz' -o -name '*.zip' \\) | wc -l | tr -d ' ')"
+          count="$(find dist -maxdepth 1 -type f -name '*.tar.gz' -o -type f -name '*.zip' | wc -l | tr -d ' ')"
           if [[ "${count}" != "4" ]]; then
             echo "Expected 4 artifacts (3 Linux + 1 Windows), found ${count}" >&2
             exit 1
