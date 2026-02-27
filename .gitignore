@@ -1,7 +1,7 @@
-__pycache__/
 .venv/
 Xlib/
 third_party_licenses/
 six.py
 dbus_next/
 dist/
+**/__pycache__/
