@@ -1,16 +1,16 @@
-"""Windows global hotkey backend with optional low-level side-specific support."""
+"""Windows global hotkey backend with side-specific modifier support."""
 
 from __future__ import annotations
 
 import ctypes
 import logging
+import queue
 import sys
 import threading
 from ctypes import wintypes
-from dataclasses import dataclass
-from typing import Optional, Protocol
+from dataclasses import dataclass, field
+from typing import Callable, Optional, Protocol
 
-from ..feature_flags import ENABLE_WINDOWS_LOW_LEVEL_HOOK
 from .base import BackendAvailability, BackendCapabilities, HotkeyBackend, HotkeyCallback
 from .hotkey_parser import parse_hotkey
 
@@ -18,7 +18,11 @@ from .hotkey_parser import parse_hotkey
 WM_HOTKEY = 0x0312
 WM_QUIT = 0x0012
 WM_KEYDOWN = 0x0100
+WM_KEYUP = 0x0101
 WM_SYSKEYDOWN = 0x0104
+WM_SYSKEYUP = 0x0105
+WM_APP = 0x8000
+WM_TASK = WM_APP + 1
 WH_KEYBOARD_LL = 13
 HC_ACTION = 0
 MOD_ALT = 0x0001
@@ -61,245 +65,413 @@ class _KBDLLHOOKSTRUCT(ctypes.Structure):
     ]
 
 
-class LowLevelHookFallback(Protocol):
-    """Low-level path for no-modifier and side-specific hotkeys on Windows."""
-
-    def availability(self) -> BackendAvailability:
-        """Return fallback availability."""
+class WindowsClient(Protocol):
+    """Protocol for Windows hotkey client implementations."""
 
     def start(self, on_hotkey: HotkeyCallback) -> bool:
-        """Start fallback listener."""
+        """Start Windows hotkey listener."""
 
     def stop(self) -> None:
-        """Stop fallback listener."""
+        """Stop Windows hotkey listener."""
 
     def register_hotkey(self, binding_id: str, hotkey: str) -> bool:
-        """Register hotkey in fallback path."""
+        """Register hotkey for binding."""
 
     def unregister_hotkey(self, binding_id: str) -> bool:
-        """Unregister hotkey in fallback path."""
+        """Unregister hotkey for binding."""
 
 
-class NullLowLevelHookFallback:
-    """Fallback placeholder when low-level hook support is unavailable."""
-
-    def __init__(self, *, logger: Optional[logging.Logger] = None, reason: str = "Low-level hook is disabled") -> None:
-        self._logger = logger or logging.getLogger("EDMC-Hotkeys")
-        self._reason = reason
-
-    def availability(self) -> BackendAvailability:
-        return BackendAvailability(
-            name="windows-low-level-hook",
-            available=False,
-            reason=self._reason,
-        )
-
-    def start(self, on_hotkey: HotkeyCallback) -> bool:
-        del on_hotkey
-        return False
-
-    def stop(self) -> None:
-        return None
-
-    def register_hotkey(self, binding_id: str, hotkey: str) -> bool:
-        del binding_id, hotkey
-        self._logger.warning("Low-level fallback is unavailable")
-        return False
-
-    def unregister_hotkey(self, binding_id: str) -> bool:
-        del binding_id
-        return False
-
-
-@dataclass(frozen=True)
-class _RegisteredLowLevelHotkey:
-    key_vk: int
-    modifiers: tuple[str, ...]
-
-
-class WindowsLowLevelHookFallback:
-    """Low-level keyboard hook fallback for side-specific modifier handling."""
+class WindowsHotkeyBackend(HotkeyBackend):
+    """Windows backend wrapper."""
 
     def __init__(
         self,
         *,
         logger: Optional[logging.Logger] = None,
         platform_name: Optional[str] = None,
+        client: Optional[WindowsClient] = None,
         user32: Optional[object] = None,
         kernel32: Optional[object] = None,
     ) -> None:
         self._logger = logger or logging.getLogger("EDMC-Hotkeys")
         self._platform_name = platform_name or sys.platform
+        self._client = client
+        self._user32 = user32
+        self._kernel32 = kernel32
+
+    @property
+    def name(self) -> str:
+        return "windows-registerhotkey"
+
+    def availability(self) -> BackendAvailability:
+        if self._platform_name != "win32":
+            return BackendAvailability(
+                name=self.name,
+                available=False,
+                reason=f"Unsupported platform '{self._platform_name}'",
+            )
+        if self._client is None:
+            self._client = _try_build_windows_client(
+                logger=self._logger,
+                platform_name=self._platform_name,
+                user32=self._user32,
+                kernel32=self._kernel32,
+            )
+        if self._client is None:
+            return BackendAvailability(
+                name=self.name,
+                available=False,
+                reason="Windows user32/kernel32 APIs are unavailable",
+            )
+        return BackendAvailability(name=self.name, available=True)
+
+    def capabilities(self) -> BackendCapabilities:
+        available = self.availability().available
+        return BackendCapabilities(supports_side_specific_modifiers=available)
+
+    def start(self, on_hotkey: HotkeyCallback) -> bool:
+        availability = self.availability()
+        if not availability.available or self._client is None:
+            self._logger.warning(
+                "Hotkey backend '%s' unavailable: %s",
+                self.name,
+                availability.reason,
+            )
+            return False
+        started = self._client.start(on_hotkey)
+        if started:
+            self._logger.info("Hotkey backend '%s' started", self.name)
+        else:
+            self._logger.warning("Hotkey backend '%s' failed to start", self.name)
+        return started
+
+    def stop(self) -> None:
+        if self._client is not None:
+            self._client.stop()
+        self._logger.info("Hotkey backend '%s' stopped", self.name)
+
+    def register_hotkey(self, binding_id: str, hotkey: str) -> bool:
+        availability = self.availability()
+        if self._client is None and not availability.available:
+            self._logger.warning(
+                "Cannot register Windows hotkey: backend '%s' unavailable: %s",
+                self.name,
+                availability.reason,
+            )
+            return False
+        assert self._client is not None
+        registered = self._client.register_hotkey(binding_id, hotkey)
+        if not registered:
+            self._logger.warning(
+                "Backend '%s' failed to register hotkey: id=%s hotkey=%s",
+                self.name,
+                binding_id,
+                hotkey,
+            )
+        return registered
+
+    def unregister_hotkey(self, binding_id: str) -> bool:
+        if self._client is None:
+            self._logger.warning(
+                "Cannot unregister Windows hotkey: backend '%s' client is unavailable",
+                self.name,
+            )
+            return False
+        unregistered = self._client.unregister_hotkey(binding_id)
+        if not unregistered:
+            self._logger.warning(
+                "Backend '%s' failed to unregister hotkey: id=%s",
+                self.name,
+                binding_id,
+            )
+        return unregistered
+
+
+@dataclass
+class _ThreadTask:
+    func: Callable[[], object]
+    event: threading.Event = field(default_factory=threading.Event)
+    result: Optional[object] = None
+    error: Optional[BaseException] = None
+
+
+@dataclass(frozen=True)
+class _RegisteredWindowsHotkey:
+    hotkey_id: int
+    hotkey: str
+
+
+@dataclass(frozen=True)
+class _RegisteredSideHotkey:
+    key_vk: int
+    modifiers: tuple[str, ...]
+
+
+class WindowsMessageLoopClient:
+    """Windows hotkey client using RegisterHotKey and low-level hooks."""
+
+    def __init__(self, *, logger: logging.Logger, user32: object, kernel32: object) -> None:
+        self._logger = logger
         self._user32 = user32
         self._kernel32 = kernel32
         self._callback: Optional[HotkeyCallback] = None
         self._running = False
         self._thread: Optional[threading.Thread] = None
         self._thread_id: Optional[int] = None
+        self._thread_ready = threading.Event()
+        self._tasks: queue.Queue[_ThreadTask] = queue.Queue()
         self._hook_handle: Optional[int] = None
         self._hook_proc_ref = None
-        self._registered: dict[str, _RegisteredLowLevelHotkey] = {}
-
-    def availability(self) -> BackendAvailability:
-        if self._platform_name != "win32":
-            return BackendAvailability(
-                name="windows-low-level-hook",
-                available=False,
-                reason=f"Unsupported platform '{self._platform_name}'",
-            )
-        user32 = self._resolve_user32()
-        kernel32 = self._resolve_kernel32()
-        if user32 is None or kernel32 is None:
-            return BackendAvailability(
-                name="windows-low-level-hook",
-                available=False,
-                reason="Windows user32/kernel32 APIs are unavailable",
-            )
-        required_symbols = (
-            "SetWindowsHookExW",
-            "UnhookWindowsHookEx",
-            "CallNextHookEx",
-            "GetMessageW",
-            "PostThreadMessageW",
-            "GetAsyncKeyState",
-        )
-        if any(not hasattr(user32, symbol) for symbol in required_symbols):
-            return BackendAvailability(
-                name="windows-low-level-hook",
-                available=False,
-                reason="Required Windows hook APIs are unavailable",
-            )
-        return BackendAvailability(name="windows-low-level-hook", available=True)
+        self._registered: dict[str, _RegisteredWindowsHotkey] = {}
+        self._id_to_binding: dict[int, str] = {}
+        self._next_hotkey_id = 1
+        self._side_bindings: dict[str, _RegisteredSideHotkey] = {}
+        self._side_bindings_by_key: dict[int, set[str]] = {}
+        self._active_side_bindings: set[str] = set()
+        self._side_lock = threading.Lock()
 
     def start(self, on_hotkey: HotkeyCallback) -> bool:
-        if not self.availability().available:
-            return False
+        if self._running:
+            return True
         self._callback = on_hotkey
         self._running = True
-        if self._thread is not None and self._thread.is_alive():
-            return True
-        self._thread = threading.Thread(target=self._run_loop, daemon=True, name="edmc-hotkeys-winll")
+        self._thread_ready.clear()
+        self._thread = threading.Thread(target=self._message_loop, daemon=True, name="edmc-hotkeys-win")
         self._thread.start()
+        if not self._thread_ready.wait(timeout=1.0):
+            self._logger.warning("Windows message loop did not start")
+            self._running = False
+            return False
         return True
 
     def stop(self) -> None:
+        if not self._running:
+            return
+        self._invoke_on_thread(self._unregister_all_hotkeys)
         self._running = False
-        user32 = self._resolve_user32()
-        if user32 is not None and self._thread_id is not None and hasattr(user32, "PostThreadMessageW"):
-            user32.PostThreadMessageW(self._thread_id, WM_QUIT, 0, 0)
+        self._post_message(WM_QUIT)
         if self._thread is not None and self._thread.is_alive():
             self._thread.join(timeout=0.5)
         self._thread = None
         self._thread_id = None
         self._callback = None
         self._registered.clear()
+        self._id_to_binding.clear()
+        with self._side_lock:
+            self._side_bindings.clear()
+            self._side_bindings_by_key.clear()
+            self._active_side_bindings.clear()
 
     def register_hotkey(self, binding_id: str, hotkey: str) -> bool:
         parsed = parse_hotkey(hotkey)
         if parsed is None:
-            self._logger.warning("Could not parse low-level hotkey '%s'", hotkey)
+            self._logger.warning("Could not parse Windows hotkey '%s'", hotkey)
+            return False
+        if _requires_side_specific(parsed.modifiers):
+            return self._register_side_specific(binding_id, parsed)
+        modifiers, virtual_key = _to_windows_hotkey(parsed.modifiers, parsed.key)
+        if virtual_key is None:
+            self._logger.warning("Unsupported Windows hotkey key '%s'", parsed.key)
+            return False
+        result = self._invoke_on_thread(
+            lambda: self._register_with_registerhotkey(binding_id, hotkey, modifiers, virtual_key)
+        )
+        return bool(result)
+
+    def unregister_hotkey(self, binding_id: str) -> bool:
+        removed_side = self._unregister_side_specific(binding_id)
+        removed_register = bool(self._invoke_on_thread(lambda: self._unregister_registerhotkey(binding_id)))
+        return removed_side or removed_register
+
+    def _register_side_specific(self, binding_id: str, parsed) -> bool:
+        if not self._hook_handle:
+            self._logger.warning(
+                "Low-level hook unavailable; cannot register side-specific hotkey '%s'",
+                binding_id,
+            )
             return False
         key_vk = _to_windows_virtual_key(parsed.key)
         if key_vk is None:
-            self._logger.warning("Unsupported key token for low-level hotkey '%s'", hotkey)
+            self._logger.warning("Unsupported Windows hotkey key '%s'", parsed.key)
             return False
-        self._registered[binding_id] = _RegisteredLowLevelHotkey(key_vk=key_vk, modifiers=parsed.modifiers)
+        with self._side_lock:
+            self._side_bindings[binding_id] = _RegisteredSideHotkey(key_vk=key_vk, modifiers=parsed.modifiers)
+            self._side_bindings_by_key.setdefault(key_vk, set()).add(binding_id)
         return True
 
-    def unregister_hotkey(self, binding_id: str) -> bool:
-        return self._registered.pop(binding_id, None) is not None
+    def _unregister_side_specific(self, binding_id: str) -> bool:
+        with self._side_lock:
+            registration = self._side_bindings.pop(binding_id, None)
+            if registration is None:
+                return False
+            self._active_side_bindings.discard(binding_id)
+            bindings = self._side_bindings_by_key.get(registration.key_vk)
+            if bindings is not None:
+                bindings.discard(binding_id)
+                if not bindings:
+                    self._side_bindings_by_key.pop(registration.key_vk, None)
+        return True
 
-    def _resolve_user32(self) -> Optional[object]:
-        if self._user32 is not None:
-            return self._user32
-        if self._platform_name != "win32":
-            return None
+    def _register_with_registerhotkey(
+        self,
+        binding_id: str,
+        hotkey: str,
+        modifiers: int,
+        virtual_key: int,
+    ) -> bool:
+        hotkey_id = self._next_hotkey_id
+        self._next_hotkey_id += 1
+        if not bool(self._user32.RegisterHotKey(None, hotkey_id, modifiers, virtual_key)):
+            self._logger.warning("RegisterHotKey failed for binding '%s' (%s)", binding_id, hotkey)
+            return False
+        self._registered[binding_id] = _RegisteredWindowsHotkey(hotkey_id=hotkey_id, hotkey=hotkey)
+        self._id_to_binding[hotkey_id] = binding_id
+        return True
+
+    def _unregister_registerhotkey(self, binding_id: str) -> bool:
+        registration = self._registered.pop(binding_id, None)
+        if registration is None:
+            return False
+        self._id_to_binding.pop(registration.hotkey_id, None)
+        return bool(self._user32.UnregisterHotKey(None, registration.hotkey_id))
+
+    def _unregister_all_hotkeys(self) -> None:
+        for binding_id in list(self._registered.keys()):
+            self._unregister_registerhotkey(binding_id)
+        with self._side_lock:
+            self._side_bindings.clear()
+            self._side_bindings_by_key.clear()
+            self._active_side_bindings.clear()
+
+    def _message_loop(self) -> None:
         try:
-            self._user32 = ctypes.windll.user32
-            return self._user32
-        except Exception:
-            return None
-
-    def _resolve_kernel32(self) -> Optional[object]:
-        if self._kernel32 is not None:
-            return self._kernel32
-        if self._platform_name != "win32":
-            return None
-        try:
-            self._kernel32 = ctypes.windll.kernel32
-            return self._kernel32
-        except Exception:
-            return None
-
-    def _run_loop(self) -> None:
-        user32 = self._resolve_user32()
-        kernel32 = self._resolve_kernel32()
-        if user32 is None or kernel32 is None:
-            return
-
-        try:
-            self._thread_id = int(kernel32.GetCurrentThreadId())
+            self._thread_id = int(self._kernel32.GetCurrentThreadId())
         except Exception:
             self._thread_id = None
+        msg = _MSG()
+        if hasattr(self._user32, "PeekMessageW"):
+            try:
+                self._user32.PeekMessageW(ctypes.byref(msg), None, 0, 0, 0)
+            except Exception:
+                pass
+        self._install_hook()
+        self._thread_ready.set()
 
+        while self._running:
+            try:
+                result = int(self._user32.GetMessageW(ctypes.byref(msg), None, 0, 0))
+            except Exception:
+                self._logger.exception("Windows message loop failed")
+                break
+            if result <= 0:
+                break
+            if msg.message == WM_HOTKEY:
+                binding_id = self._id_to_binding.get(int(msg.wParam))
+                if binding_id and self._callback is not None:
+                    try:
+                        self._callback(binding_id)
+                    except Exception:
+                        self._logger.exception("Windows hotkey callback failed")
+            elif msg.message == WM_TASK:
+                self._drain_tasks()
+
+        self._remove_hook()
+
+    def _install_hook(self) -> None:
         hook_proc_type = ctypes.WINFUNCTYPE(wintypes.LRESULT, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM)
 
         def _proc(n_code: int, w_param: int, l_param: int) -> int:
             return self._keyboard_proc(n_code, w_param, l_param)
 
         self._hook_proc_ref = hook_proc_type(_proc)
-        module_handle = kernel32.GetModuleHandleW(None) if hasattr(kernel32, "GetModuleHandleW") else None
+        module_handle = None
+        if hasattr(self._kernel32, "GetModuleHandleW"):
+            try:
+                module_handle = self._kernel32.GetModuleHandleW(None)
+            except Exception:
+                module_handle = None
         try:
-            self._hook_handle = int(user32.SetWindowsHookExW(WH_KEYBOARD_LL, self._hook_proc_ref, module_handle, 0))
+            handle = self._user32.SetWindowsHookExW(WH_KEYBOARD_LL, self._hook_proc_ref, module_handle, 0)
+            self._hook_handle = int(handle) if handle else None
         except Exception:
             self._hook_handle = None
         if not self._hook_handle:
             self._logger.warning("Failed to install low-level keyboard hook")
-            return
 
-        msg = _MSG()
-        while self._running:
+    def _remove_hook(self) -> None:
+        if self._hook_handle and hasattr(self._user32, "UnhookWindowsHookEx"):
             try:
-                result = int(user32.GetMessageW(ctypes.byref(msg), None, 0, 0))
+                self._user32.UnhookWindowsHookEx(self._hook_handle)
             except Exception:
-                self._logger.exception("Low-level hook message loop failed")
-                break
-            if result <= 0:
-                break
-
-        try:
-            user32.UnhookWindowsHookEx(self._hook_handle)
-        except Exception:
-            self._logger.debug("Failed to unhook low-level keyboard hook", exc_info=True)
+                self._logger.debug("Failed to unhook low-level keyboard hook", exc_info=True)
         self._hook_handle = None
         self._hook_proc_ref = None
 
     def _keyboard_proc(self, n_code: int, w_param: int, l_param: int) -> int:
-        user32 = self._resolve_user32()
-        if user32 is None:
-            return 0
-
-        if n_code == HC_ACTION and w_param in (WM_KEYDOWN, WM_SYSKEYDOWN):
+        if n_code == HC_ACTION:
             try:
                 event = ctypes.cast(l_param, ctypes.POINTER(_KBDLLHOOKSTRUCT)).contents
                 key_vk = int(event.vkCode)
-                for binding_id in self._matching_bindings(key_vk):
-                    if self._callback is not None:
-                        self._callback(binding_id)
+                if w_param in (WM_KEYDOWN, WM_SYSKEYDOWN):
+                    self._handle_low_level_keydown(key_vk)
+                elif w_param in (WM_KEYUP, WM_SYSKEYUP):
+                    self._handle_low_level_keyup(key_vk)
             except Exception:
                 self._logger.exception("Low-level hook callback failed")
-        return int(user32.CallNextHookEx(self._hook_handle or 0, n_code, w_param, l_param))
+        return int(self._user32.CallNextHookEx(self._hook_handle or 0, n_code, w_param, l_param))
 
-    def _matching_bindings(self, key_vk: int) -> list[str]:
-        matches: list[str] = []
-        for binding_id, registration in self._registered.items():
-            if registration.key_vk != key_vk:
+    def _handle_low_level_keydown(self, key_vk: int) -> None:
+        binding_ids = self._side_bindings_for_key(key_vk)
+        if not binding_ids:
+            self._prune_inactive_side_bindings()
+            return
+        for binding_id in binding_ids:
+            with self._side_lock:
+                if binding_id in self._active_side_bindings:
+                    continue
+                registration = self._side_bindings.get(binding_id)
+            if registration is None:
                 continue
-            if self._modifiers_match(registration.modifiers):
-                matches.append(binding_id)
-        return matches
+            if not self._side_modifiers_match(registration.modifiers):
+                continue
+            with self._side_lock:
+                self._active_side_bindings.add(binding_id)
+            if self._callback is not None:
+                try:
+                    self._callback(binding_id)
+                except Exception:
+                    self._logger.exception("Windows low-level hotkey callback failed")
+        self._prune_inactive_side_bindings()
 
-    def _modifiers_match(self, required_modifiers: tuple[str, ...]) -> bool:
+    def _handle_low_level_keyup(self, key_vk: int) -> None:
+        with self._side_lock:
+            binding_ids = list(self._side_bindings_by_key.get(key_vk, set()))
+            for binding_id in binding_ids:
+                self._active_side_bindings.discard(binding_id)
+        self._prune_inactive_side_bindings()
+
+    def _prune_inactive_side_bindings(self) -> None:
+        with self._side_lock:
+            active_bindings = list(self._active_side_bindings)
+        for binding_id in active_bindings:
+            registration = self._side_bindings.get(binding_id)
+            if registration is None:
+                with self._side_lock:
+                    self._active_side_bindings.discard(binding_id)
+                continue
+            if not self._is_pressed(registration.key_vk):
+                with self._side_lock:
+                    self._active_side_bindings.discard(binding_id)
+                continue
+            if not self._side_modifiers_match(registration.modifiers):
+                with self._side_lock:
+                    self._active_side_bindings.discard(binding_id)
+
+    def _side_bindings_for_key(self, key_vk: int) -> list[str]:
+        with self._side_lock:
+            return list(self._side_bindings_by_key.get(key_vk, set()))
+
+    def _side_modifiers_match(self, required_modifiers: tuple[str, ...]) -> bool:
         required = set(required_modifiers)
         groups = {
             "ctrl": {"ctrl_l", "ctrl_r"},
@@ -340,216 +512,89 @@ class WindowsLowLevelHookFallback:
         return True
 
     def _is_pressed(self, vk_code: int) -> bool:
-        user32 = self._resolve_user32()
-        if user32 is None:
-            return False
         try:
-            return bool(int(user32.GetAsyncKeyState(vk_code)) & 0x8000)
+            return bool(int(self._user32.GetAsyncKeyState(vk_code)) & 0x8000)
         except Exception:
             return False
 
-
-@dataclass(frozen=True)
-class _RegisteredWindowsHotkey:
-    hotkey_id: int
-    hotkey: str
-
-
-class WindowsHotkeyBackend(HotkeyBackend):
-    """Windows backend with RegisterHotKey + optional low-level side-specific path."""
-
-    def __init__(
-        self,
-        *,
-        logger: Optional[logging.Logger] = None,
-        platform_name: Optional[str] = None,
-        user32: Optional[object] = None,
-        kernel32: Optional[object] = None,
-        fallback: Optional[LowLevelHookFallback] = None,
-    ) -> None:
-        self._logger = logger or logging.getLogger("EDMC-Hotkeys")
-        self._platform_name = platform_name or sys.platform
-        self._user32 = user32
-        self._kernel32 = kernel32
-        self._low_level_enabled = ENABLE_WINDOWS_LOW_LEVEL_HOOK
-        if fallback is not None:
-            self._fallback = fallback
-        elif self._low_level_enabled:
-            self._fallback = WindowsLowLevelHookFallback(
-                logger=self._logger,
-                platform_name=self._platform_name,
-                user32=self._user32,
-                kernel32=self._kernel32,
-            )
-        else:
-            self._fallback = NullLowLevelHookFallback(
-                logger=self._logger,
-                reason="Low-level hook disabled (set EDMC_HOTKEYS_ENABLE_WINDOWS_LOW_LEVEL_HOOK=1 to enable)",
-            )
-        self._callback: Optional[HotkeyCallback] = None
-        self._running = False
-        self._registered: dict[str, _RegisteredWindowsHotkey] = {}
-        self._id_to_binding: dict[int, str] = {}
-        self._next_hotkey_id = 1
-        self._loop_thread: Optional[threading.Thread] = None
-        self._loop_thread_id: Optional[int] = None
-
-    @property
-    def name(self) -> str:
-        return "windows-registerhotkey"
-
-    def availability(self) -> BackendAvailability:
-        if self._platform_name != "win32":
-            return BackendAvailability(
-                name=self.name,
-                available=False,
-                reason=f"Unsupported platform '{self._platform_name}'",
-            )
-        if self._resolve_user32() is None:
-            return BackendAvailability(
-                name=self.name,
-                available=False,
-                reason="Windows user32 APIs are unavailable",
-            )
-        return BackendAvailability(name=self.name, available=True)
-
-    def capabilities(self) -> BackendCapabilities:
-        availability = self._fallback.availability()
-        return BackendCapabilities(supports_side_specific_modifiers=availability.available)
-
-    def start(self, on_hotkey: HotkeyCallback) -> bool:
-        availability = self.availability()
-        if not availability.available:
-            return False
-        self._callback = on_hotkey
-        self._running = True
-        self._start_message_loop_if_supported()
-        self._fallback.start(on_hotkey)
-        return True
-
-    def stop(self) -> None:
-        for binding_id in list(self._registered.keys()):
-            self.unregister_hotkey(binding_id)
-        self._running = False
-        self._fallback.stop()
-
-        user32 = self._resolve_user32()
-        if user32 is not None and self._loop_thread_id is not None and hasattr(user32, "PostThreadMessageW"):
-            user32.PostThreadMessageW(self._loop_thread_id, WM_QUIT, 0, 0)
-        if self._loop_thread is not None and self._loop_thread.is_alive():
-            self._loop_thread.join(timeout=0.5)
-        self._loop_thread = None
-        self._loop_thread_id = None
-        self._callback = None
-
-    def register_hotkey(self, binding_id: str, hotkey: str) -> bool:
-        parsed = parse_hotkey(hotkey)
-        if parsed is None:
-            self._logger.warning("Could not parse hotkey '%s'", hotkey)
-            return False
-
-        modifiers, virtual_key = _to_windows_hotkey(parsed.modifiers, parsed.key)
-        if virtual_key is None:
-            self._logger.warning("Unsupported Windows hotkey key '%s'", parsed.key)
-            return False
-
-        requires_side_specific = any(_is_side_specific_modifier(token) for token in parsed.modifiers)
-        if requires_side_specific:
-            if not self.capabilities().supports_side_specific_modifiers:
-                self._logger.warning(
-                    "Side-specific modifiers require low-level hook support, but it is unavailable"
-                )
-                return False
-            return self._fallback.register_hotkey(binding_id, hotkey)
-
-        user32 = self._resolve_user32()
-        if user32 is None:
-            return False
-
-        hotkey_id = self._next_hotkey_id
-        self._next_hotkey_id += 1
-        if not bool(user32.RegisterHotKey(None, hotkey_id, modifiers, virtual_key)):
-            self._logger.warning("RegisterHotKey failed for binding '%s' (%s)", binding_id, hotkey)
-            return False
-
-        self._registered[binding_id] = _RegisteredWindowsHotkey(hotkey_id=hotkey_id, hotkey=hotkey)
-        self._id_to_binding[hotkey_id] = binding_id
-        return True
-
-    def unregister_hotkey(self, binding_id: str) -> bool:
-        registered = self._registered.pop(binding_id, None)
-        fallback_result = self._fallback.unregister_hotkey(binding_id)
-        if registered is None:
-            return fallback_result
-
-        self._id_to_binding.pop(registered.hotkey_id, None)
-        user32 = self._resolve_user32()
-        if user32 is None:
-            return False
-        return bool(user32.UnregisterHotKey(None, registered.hotkey_id))
-
-    def _resolve_user32(self) -> Optional[object]:
-        if self._user32 is not None:
-            return self._user32
-        if self._platform_name != "win32":
+    def _invoke_on_thread(self, func: Callable[[], object]) -> Optional[object]:
+        if not self._running or self._thread_id is None:
             return None
+        task = _ThreadTask(func=func)
+        self._tasks.put(task)
+        self._post_message(WM_TASK)
+        if not task.event.wait(timeout=1.0):
+            self._logger.warning("Windows message loop task timed out")
+            return None
+        if task.error is not None:
+            self._logger.exception("Windows message loop task failed", exc_info=task.error)
+            return None
+        return task.result
+
+    def _post_message(self, message: int) -> None:
+        if self._thread_id is None or not hasattr(self._user32, "PostThreadMessageW"):
+            return
         try:
-            self._user32 = ctypes.windll.user32
-            return self._user32
+            self._user32.PostThreadMessageW(self._thread_id, message, 0, 0)
         except Exception:
-            return None
+            self._logger.debug("Failed to post Windows message", exc_info=True)
 
-    def _resolve_kernel32(self) -> Optional[object]:
-        if self._kernel32 is not None:
-            return self._kernel32
-        if self._platform_name != "win32":
-            return None
-        try:
-            self._kernel32 = ctypes.windll.kernel32
-            return self._kernel32
-        except Exception:
-            return None
-
-    def _start_message_loop_if_supported(self) -> None:
-        user32 = self._resolve_user32()
-        kernel32 = self._resolve_kernel32()
-        if user32 is None or kernel32 is None:
-            return
-        if not hasattr(user32, "GetMessageW"):
-            return
-        if self._loop_thread is not None and self._loop_thread.is_alive():
-            return
-
-        self._loop_thread = threading.Thread(target=self._message_loop, daemon=True, name="edmc-hotkeys-winmsg")
-        self._loop_thread.start()
-
-    def _message_loop(self) -> None:
-        user32 = self._resolve_user32()
-        kernel32 = self._resolve_kernel32()
-        if user32 is None or kernel32 is None:
-            return
-
-        try:
-            self._loop_thread_id = int(kernel32.GetCurrentThreadId())
-        except Exception:
-            self._loop_thread_id = None
-
-        msg = _MSG()
-        while self._running:
+    def _drain_tasks(self) -> None:
+        while True:
             try:
-                result = int(user32.GetMessageW(ctypes.byref(msg), None, 0, 0))
-            except Exception:
-                self._logger.exception("Windows message loop failed")
+                task = self._tasks.get_nowait()
+            except queue.Empty:
                 break
-            if result <= 0:
-                break
-            if msg.message == WM_HOTKEY:
-                binding_id = self._id_to_binding.get(int(msg.wParam))
-                if binding_id and self._callback is not None:
-                    try:
-                        self._callback(binding_id)
-                    except Exception:
-                        self._logger.exception("Windows hotkey callback failed")
+            try:
+                task.result = task.func()
+            except BaseException as exc:
+                task.error = exc
+            finally:
+                task.event.set()
+
+
+def _try_build_windows_client(
+    *,
+    logger: logging.Logger,
+    platform_name: str,
+    user32: Optional[object],
+    kernel32: Optional[object],
+) -> Optional[WindowsMessageLoopClient]:
+    if platform_name != "win32":
+        return None
+    if user32 is None:
+        try:
+            user32 = ctypes.windll.user32
+        except Exception:
+            user32 = None
+    if kernel32 is None:
+        try:
+            kernel32 = ctypes.windll.kernel32
+        except Exception:
+            kernel32 = None
+    if user32 is None or kernel32 is None:
+        return None
+    required_user32 = {
+        "RegisterHotKey",
+        "UnregisterHotKey",
+        "GetMessageW",
+        "PostThreadMessageW",
+        "CallNextHookEx",
+        "SetWindowsHookExW",
+        "UnhookWindowsHookEx",
+        "GetAsyncKeyState",
+    }
+    if any(not hasattr(user32, symbol) for symbol in required_user32):
+        logger.debug("Windows user32 APIs missing required symbols")
+        return None
+    if not hasattr(kernel32, "GetCurrentThreadId"):
+        logger.debug("Windows kernel32 APIs missing required symbols")
+        return None
+    return WindowsMessageLoopClient(logger=logger, user32=user32, kernel32=kernel32)
+
+
+def _requires_side_specific(modifiers: tuple[str, ...]) -> bool:
+    return any(token.endswith("_l") or token.endswith("_r") for token in modifiers)
 
 
 def _to_windows_hotkey(modifiers: tuple[str, ...], key: str) -> tuple[int, Optional[int]]:
@@ -582,10 +627,6 @@ def _modifier_group_for_token(token: str) -> str | None:
     if token == "win" or token.startswith("win_"):
         return "win"
     return None
-
-
-def _is_side_specific_modifier(token: str) -> bool:
-    return token.endswith("_l") or token.endswith("_r")
 
 
 def _to_windows_virtual_key(key: str) -> Optional[int]:

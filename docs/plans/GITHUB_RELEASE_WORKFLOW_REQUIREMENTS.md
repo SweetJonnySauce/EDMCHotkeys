@@ -13,20 +13,19 @@ Define requirements for a GitHub release workflow that produces platform-specifi
 - Automated release checks before publishing artifacts.
 
 ## Non-Goals
-- Implementing Windows packaging in this iteration.
 - Changing backend behavior or runtime architecture.
 - Replacing existing local/manual packaging scripts beyond what is required for CI release automation.
 
 ## Artifact Strategy
 Target artifacts (long-term):
-1. Windows artifact (deferred for now).
+1. Windows artifact.
 2. Linux X11 artifact.
 3. Linux Wayland artifact (`wayland`, no companion).
 4. Linux Wayland GNOME artifact (`wayland_gnome`, with companion).
 
 Current iteration:
 - Implement Linux X11 + Linux Wayland + Linux Wayland GNOME artifacts.
-- Keep Windows artifact explicitly deferred with clear workflow placeholders.
+- Implement Windows artifact packaging.
 
 ## Phase and Stage Requirements
 | Phase | Stage | Requirement | Status |
@@ -36,7 +35,7 @@ Current iteration:
 | R2 | 2.1 | Linux X11 artifact must vendor dependencies via `scripts/vendor_xlib.sh` | Completed |
 | R2 | 2.2 | Linux Wayland artifact (`wayland`) must vendor dependencies via `scripts/vendor_dbus_next.sh` and exclude companion | Completed |
 | R2 | 2.3 | Linux Wayland GNOME artifact (`wayland_gnome`) must vendor `dbus_next` and include companion payloads/scripts | Completed |
-| R2 | 2.4 | Windows artifact path documented as deferred | Completed |
+| R2 | 2.4 | Windows artifact packaging included in workflow | Completed |
 | R3 | 3.1 | Workflow must run release gate checks before packaging (`make check`) | Completed |
 | R3 | 3.2 | Workflow must fail if required vendored modules are missing | Completed |
 | R3 | 3.3 | Workflow must produce checksums for each artifact | Completed |
@@ -85,9 +84,8 @@ Current iteration:
 ### FR-6: Publish Outputs
 - Must publish platform-specific artifacts to GitHub Release:
   - Linux artifacts: `tar.gz`
-  - Windows artifact: `zip` (deferred for now)
+  - Windows artifact: `zip`
 - Must publish checksum file(s) for all artifacts.
-- Must surface Windows artifact as deferred in release summary until implemented.
 - Workflow must fail if a release already exists for the target tag.
 
 ### FR-7: Packaging Include/Exclude Policy
@@ -164,13 +162,13 @@ Current iteration:
 ### FR-11: Workflow Topology
 - Use a single workflow file:
   - `.github/workflows/release.yml`
-- The single workflow must handle all current artifact variants (`linux-x11`, `linux-wayland`, `linux-wayland-gnome`) and explicit Windows deferred reporting.
+- The single workflow must handle all current artifact variants (`linux-x11`, `linux-wayland`, `linux-wayland-gnome`, `windows`).
 
 ## Artifact Naming (Proposed)
 - `EDMC-Hotkeys-linux-x11-v<version>.tar.gz`
 - `EDMC-Hotkeys-linux-wayland-v<version>.tar.gz`
 - `EDMC-Hotkeys-linux-wayland-gnome-v<version>.tar.gz`
-- `EDMC-Hotkeys-windows-v<version>.zip` (deferred placeholder only for now)
+- `EDMC-Hotkeys-windows-v<version>.zip`
 - `SHA256SUMS.txt`
 
 ## Acceptance Criteria
@@ -178,7 +176,7 @@ Current iteration:
 - Linux Wayland artifact (`wayland`) includes vendored `dbus-next` dependency, excludes companion payloads/scripts, and passes release checks.
 - Linux Wayland GNOME artifact (`wayland_gnome`) includes vendored `dbus-next` dependency plus companion payloads/scripts and passes release checks.
 - Workflow publishes the three Linux artifacts + checksums to a GitHub release.
-- Windows status is explicitly documented as deferred in workflow output and release notes.
+- Workflow publishes the Windows artifact + checksums to a GitHub release.
 
 ## Risks and Constraints
 - Dependency vendoring scripts depend on interpreter availability and pip resolution.
@@ -189,7 +187,7 @@ Current iteration:
 1. Trigger policy: both tag push and manual dispatch.
 2. Release publish mode: create live release immediately (no draft gate).
 3. Source policy: any branch/tag.
-4. Artifact format: Linux `tar.gz`; Windows `zip` (Windows still deferred).
+4. Artifact format: Linux `tar.gz`; Windows `zip`.
 5. Wayland variants:
    - `wayland`: no companion payload.
    - `wayland_gnome`: includes companion extension/helper payload.
@@ -198,7 +196,7 @@ Current iteration:
 7. Version authority: git tag.
 8. Integrity output: checksums only (no signing for now).
 9. Release notes source: use release notes file; target location should be root-level `RELEASE_NOTES.md`.
-10. Windows deferred handling: explicit skipped job in workflow output.
+10. Windows artifact included in workflow output.
 11. Linux X11 packaging excludes bridge artifacts/scripts.
 12. `bindings.json` is excluded from release artifacts (generated/managed at runtime).
 13. Release notes migration to root `RELEASE_NOTES.md` is in-scope now.

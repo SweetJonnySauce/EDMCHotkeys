@@ -16,11 +16,11 @@ Implement a single GitHub release workflow that builds and publishes platform-sp
   - `linux-x11`
   - `linux-wayland`
   - `linux-wayland-gnome`
+- `windows`
 - Enforce include/exclude rules and top-level folder layout.
 - Publish checksums and release assets.
 
 ## Non-Goals
-- Implement Windows artifact build (deferred; explicit skipped signal only).
 - Change plugin runtime behavior.
 
 ## Phase 1 — Release Interfaces (Status: Completed)
@@ -50,7 +50,7 @@ Implement a single GitHub release workflow that builds and publishes platform-sp
 | --- | --- | --- |
 | 3.1 | Implement `release.yml` trigger/version validation + existing-release guard | Completed |
 | 3.2 | Implement matrix build jobs for three Linux artifacts | Completed |
-| 3.3 | Implement publish job (live release, checksums, deferred Windows signal) | Completed |
+| 3.3 | Implement publish job (live release, checksums, Windows included) | Completed |
 
 ### Phase 3 Validation
 1. Workflow lint/basic parse sanity.
@@ -71,7 +71,7 @@ Implement a single GitHub release workflow that builds and publishes platform-sp
 - Single workflow `.github/workflows/release.yml` exists and implements requirement decisions.
 - Three Linux artifacts are built/published with strict per-variant content isolation.
 - Checksums are published.
-- Windows is explicitly reported as deferred via skipped job/output.
+- Windows artifact is built and published alongside Linux artifacts.
 - Manual pre-releases require `vX.Y.Z-rc.N`; tag releases require `vX.Y.Z`.
 
 ## Rollback
@@ -82,17 +82,18 @@ Implement a single GitHub release workflow that builds and publishes platform-sp
 - Added release packager: [build_release_artifact.py](/home/jon/edmc_plugins/EDMC-Hotkeys/scripts/build_release_artifact.py)
   - Variant-specific vendoring via `scripts/vendor_xlib.sh` and `scripts/vendor_dbus_next.sh`.
   - Enforces strict include/exclude policy and top-level tar layout.
+  - Added Windows variant packaging to produce a zip artifact without vendored dependencies.
 - Added local build targets in [Makefile](/home/jon/edmc_plugins/EDMC-Hotkeys/Makefile):
   - `release-build-linux-x11`
   - `release-build-linux-wayland`
   - `release-build-linux-wayland-gnome`
+  - `release-build-windows`
   - `release-build-all`
 - Added CI workflow: [release.yml](/home/jon/edmc_plugins/EDMC-Hotkeys/.github/workflows/release.yml)
   - Tag releases: `vX.Y.Z`
   - Manual pre-releases: `vX.Y.Z-rc.N`
   - Existing-release guard
-  - Linux artifact matrix + checksum generation + live publish
-  - Explicit Windows deferred job
+  - Artifact matrix (Linux + Windows) + checksum generation + live publish
 - Added operator runbook: [GITHUB_RELEASE_WORKFLOW_RUNBOOK.md](/home/jon/edmc_plugins/EDMC-Hotkeys/docs/release/GITHUB_RELEASE_WORKFLOW_RUNBOOK.md)
 - Added tests: [test_release_artifact_builder.py](/home/jon/edmc_plugins/EDMC-Hotkeys/tests/test_release_artifact_builder.py)
   - version validation coverage

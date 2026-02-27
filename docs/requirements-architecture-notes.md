@@ -99,7 +99,7 @@
 - The plugin itself should spin up a background listener thread, but **action execution defaults to main thread** dispatch.
 
 ## Platform Backend Notes (Draft)
-- Windows: prefer OS-native global hotkeys (`RegisterHotKey`), with low-level hook as fallback for non-modifier combos.
+- Windows: prefer OS-native global hotkeys (`RegisterHotKey`) for non-side-specific bindings; use low-level hook for side-specific modifiers.
 - Linux X11: use an X11 global hotkey backend implemented in-process.
 - Linux Wayland: use XDG Desktop Portal GlobalShortcuts (no privileged fallback yet).
 - No privileged/evdev fallback at this stage.
@@ -116,7 +116,7 @@
 - X11: use a hybrid in-process backend (`python-xlib`):
   - passive grabs for generic/non-side-specific bindings.
   - keymap polling + side-aware matching for side-specific bindings.
-- Windows: use `RegisterHotKey` for non-side-specific paths; side-specific behavior is currently feature-gated (see `docs/feature-flags.md`).
+- Windows: use `RegisterHotKey` for non-side-specific paths; side-specific behavior uses the low-level hook path.
 
 ## Linux X11 Backend Proposal
 - Use a pure-Python X11 client (likely `python-xlib`) to avoid compiled dependencies in packaged EDMC.

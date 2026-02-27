@@ -75,10 +75,16 @@ jobs:
         include:
           - variant: linux-x11
             artifact_suffix: linux-x11
+            artifact_ext: tar.gz
           - variant: linux-wayland
             artifact_suffix: linux-wayland
+            artifact_ext: tar.gz
           - variant: linux-wayland-gnome
             artifact_suffix: linux-wayland-gnome
+            artifact_ext: tar.gz
+          - variant: windows
+            artifact_suffix: windows
+            artifact_ext: zip
     steps:
       - uses: actions/checkout@v4
 
@@ -100,20 +106,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: dist-${{ matrix.variant }}
-          path: dist/EDMC-Hotkeys-${{ matrix.artifact_suffix }}-${{ needs.prepare.outputs.version }}.tar.gz
+          path: dist/EDMC-Hotkeys-${{ matrix.artifact_suffix }}-${{ needs.prepare.outputs.version }}.${{ matrix.artifact_ext }}
           if-no-files-found: error
-
-  windows-deferred:
-    runs-on: ubuntu-latest
-    needs: prepare
-    steps:
-      - name: Report Windows artifact status
-        run: |
-          echo "Windows release artifact is deferred in this release workflow."
 
   publish:
     runs-on: ubuntu-latest
-    needs: [prepare, build-artifacts, windows-deferred]
+    needs: [prepare, build-artifacts]
     steps:
       - uses: actions/checkout@v4
 
@@ -129,12 +127,12 @@ jobs:
         run: |
           set -euo pipefail
           ls -lah dist
-          count="$(find dist -maxdepth 1 -type f -name '*.tar.gz' | wc -l | tr -d ' ')"
-          if [[ "${count}" != "3" ]]; then
-            echo "Expected 3 Linux artifacts, found ${count}" >&2
+          count="$(find dist -maxdepth 1 -type f \\( -name '*.tar.gz' -o -name '*.zip' \\) | wc -l | tr -d ' ')"
+          if [[ "${count}" != "4" ]]; then
+            echo "Expected 4 artifacts (3 Linux + 1 Windows), found ${count}" >&2
             exit 1
           fi
-          sha256sum dist/*.tar.gz > dist/SHA256SUMS.txt
+          sha256sum dist/*.tar.gz dist/*.zip > dist/SHA256SUMS.txt
           cat dist/SHA256SUMS.txt
 
       - name: Build release notes payload
@@ -145,7 +143,7 @@ jobs:
           {
             echo
             echo "## Platform Status"
-            echo "- Windows artifact: deferred (not included in this release)."
+            echo "- Windows artifact: included."
           } >> dist/RELEASE_NOTES.release.md
 
       - name: Publish GitHub release
@@ -158,7 +156,7 @@ jobs:
           set -euo pipefail
           if gh release view "${VERSION}" >/dev/null 2>&1; then
             echo "Release ${VERSION} already exists; uploading assets and updating notes."
-            gh release upload "${VERSION}" dist/*.tar.gz dist/SHA256SUMS.txt --clobber
+            gh release upload "${VERSION}" dist/*.tar.gz dist/*.zip dist/SHA256SUMS.txt --clobber
             edit_flags=(--title "${VERSION}" --notes-file dist/RELEASE_NOTES.release.md)
             if [[ "${PRERELEASE}" == "true" ]]; then
               edit_flags+=(--prerelease)
@@ -169,9 +167,9 @@ jobs:
             if [[ "${PRERELEASE}" == "true" ]]; then
               flags+=(--prerelease)
             fi
-            if ! gh release create "${VERSION}" "${flags[@]}" dist/*.tar.gz dist/SHA256SUMS.txt; then
+            if ! gh release create "${VERSION}" "${flags[@]}" dist/*.tar.gz dist/*.zip dist/SHA256SUMS.txt; then
               echo "Release create failed; retrying as upload/edit in case of race."
-              gh release upload "${VERSION}" dist/*.tar.gz dist/SHA256SUMS.txt --clobber
+              gh release upload "${VERSION}" dist/*.tar.gz dist/*.zip dist/SHA256SUMS.txt --clobber
               edit_flags=(--title "${VERSION}" --notes-file dist/RELEASE_NOTES.release.md)
               if [[ "${PRERELEASE}" == "true" ]]; then
                 edit_flags+=(--prerelease)

@@ -145,8 +145,7 @@ if something is not clear, ask clarifying questions
 - Stage 7.5 details (backend implementation tracks):
   - Windows:
     - keep `RegisterHotKey` for bindings that do not require left/right modifier differentiation.
-    - add a low-level keyboard hook path for side-specific modifier matching, gated behind a feature flag for initial rollout.
-    - feature flag implementation detail: code-local env flag `EDMC_HOTKEYS_ENABLE_WINDOWS_LOW_LEVEL_HOOK` (not EDMC config, temporary during development).
+    - add a low-level keyboard hook path for side-specific modifier matching (always on).
   - X11:
     - extend matching beyond aggregate modifier masks to side-aware key state/keycode handling.
   - Wayland:
@@ -172,7 +171,7 @@ if something is not clear, ask clarifying questions
   - Existing assigned hotkeys may be changed as needed.
   - `bindings.json` schema/format may be changed if that simplifies or improves side-specific support.
   - Backward compatibility/migration is not required for this development phase.
-  - Temporary rollout flags may be code-local/env-driven and removed once side-specific behavior is fully validated.
+  - Temporary rollout flags may be code-local/env-driven and removed once side-specific behavior is fully validated (none required for Windows low-level hook path).
 - Acceptance criteria for Phase 7 completion:
   - Side-specific bindings can be entered in prefs and persisted.
   - Invalid canonical hotkey edits surface a blocking error dialog in prefs.
@@ -286,7 +285,7 @@ if something is not clear, ask clarifying questions
   - X11 matching now validates side-specific modifier state via keymap checks.
   - X11 side-specific bindings now use keymap polling + press-edge detection instead of relying on passive-grab delivery, eliminating observed modifier-order sensitivity and working for both left and right modifier variants.
   - Wayland reports side-specific as unsupported for capability routing.
-  - Windows low-level hook path added and gated by temporary env flag `EDMC_HOTKEYS_ENABLE_WINDOWS_LOW_LEVEL_HOOK`.
+  - Windows low-level hook path enabled by default for side-specific modifier matching.
 - Added/updated tests and docs:
   - added `tests/test_phase7_side_specific.py`.
   - updated storage/settings/backend/UI tests for v3 schema and side-specific behavior.

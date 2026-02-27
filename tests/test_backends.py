@@ -4,6 +4,7 @@ import json
 import logging
 import socket
 import time
+from pathlib import Path
 
 from edmc_hotkeys.backends.base import BackendAvailability, NullHotkeyBackend
 from edmc_hotkeys.backends.gnome_bridge import GnomeWaylandBridgeBackend
@@ -14,7 +15,7 @@ from edmc_hotkeys.backends.wayland import (
     PortalGlobalShortcutsClient,
     WaylandPortalBackend,
 )
-from edmc_hotkeys.backends.windows import WindowsHotkeyBackend
+from edmc_hotkeys.backends.windows import WindowsHotkeyBackend, _to_windows_hotkey
 from edmc_hotkeys.backends.x11 import (
     X11HotkeyBackend,
     _X11Registration,
@@ -23,6 +24,8 @@ from edmc_hotkeys.backends.x11 import (
     _registration_matches_event,
     _to_x11_key,
 )
+from edmc_hotkeys.plugin import Binding, HotkeyPlugin
+from edmc_hotkeys.registry import Action, InlineDispatchExecutor
 
 
 class _FakeBackend:
@@ -52,18 +55,16 @@ class _FakeBackend:
         return True
 
 
-class _FakeFallback:
+class _FakeWindowsClient:
     def __init__(self) -> None:
         self.started = False
         self.stopped = False
         self.registered: list[tuple[str, str]] = []
         self.unregistered: list[str] = []
-
-    def availability(self) -> BackendAvailability:
-        return BackendAvailability(name="fallback", available=True)
+        self.callback = None
 
     def start(self, on_hotkey):
-        del on_hotkey
+        self.callback = on_hotkey
         self.started = True
         return True
 
@@ -78,29 +79,9 @@ class _FakeFallback:
         self.unregistered.append(binding_id)
         return True
 
-
-class _FakeUser32:
-    def __init__(self) -> None:
-        self.register_calls: list[tuple[int, int, int]] = []
-        self.unregister_calls: list[int] = []
-        self.post_messages: list[tuple[int, int]] = []
-
-    def RegisterHotKey(self, _hwnd, hotkey_id: int, modifiers: int, virtual_key: int) -> int:
-        self.register_calls.append((hotkey_id, modifiers, virtual_key))
-        return 1
-
-    def UnregisterHotKey(self, _hwnd, hotkey_id: int) -> int:
-        self.unregister_calls.append(hotkey_id)
-        return 1
-
-    def PostThreadMessageW(self, thread_id: int, message: int, _wparam: int, _lparam: int) -> int:
-        self.post_messages.append((thread_id, message))
-        return 1
-
-
-class _FakeKernel32:
-    def GetCurrentThreadId(self) -> int:
-        return 1234
+    def trigger(self, binding_id: str) -> None:
+        if self.callback is not None:
+            self.callback(binding_id)
 
 
 class _FakeX11Mask:
@@ -395,61 +376,76 @@ def test_select_backend_unknown_linux_session_returns_null() -> None:
     assert selected.availability().available is False
 
 
-def test_windows_backend_registers_modifier_hotkey_with_registerhotkey() -> None:
-    fake_user32 = _FakeUser32()
-    fake_fallback = _FakeFallback()
+def test_windows_backend_uses_client_when_available() -> None:
+    client = _FakeWindowsClient()
     backend = WindowsHotkeyBackend(
         logger=logging.getLogger("test.backends"),
         platform_name="win32",
-        user32=fake_user32,
-        kernel32=_FakeKernel32(),
-        fallback=fake_fallback,
+        client=client,
     )
+    assert backend.availability().available is True
     assert backend.start(lambda _binding_id: None) is True
-    assert backend.register_hotkey("binding-1", "F5") is True
-    assert fake_user32.register_calls
-    _, modifiers, virtual_key = fake_user32.register_calls[0]
-    assert modifiers == 0
+    assert backend.register_hotkey("binding-win", "Ctrl+Shift+O") is True
+    assert client.registered == [("binding-win", "Ctrl+Shift+O")]
+    assert backend.unregister_hotkey("binding-win") is True
+    assert client.unregistered == ["binding-win"]
+
+
+def test_windows_key_conversion_supports_function_keys() -> None:
+    mod_mask, virtual_key = _to_windows_hotkey((), "f5")
+    assert mod_mask == 0
     assert virtual_key == 0x74
-    assert backend.unregister_hotkey("binding-1") is True
 
 
-def test_windows_backend_registers_generic_modifier_hotkey_with_registerhotkey() -> None:
-    fake_user32 = _FakeUser32()
-    fake_fallback = _FakeFallback()
-    backend = WindowsHotkeyBackend(
-        logger=logging.getLogger("test.backends"),
-        platform_name="win32",
-        user32=fake_user32,
-        kernel32=_FakeKernel32(),
-        fallback=fake_fallback,
-    )
-    assert backend.start(lambda _binding_id: None) is True
-    assert backend.register_hotkey("binding-generic", "Ctrl+Shift+O") is True
-    assert fake_fallback.registered == []
-    assert fake_user32.register_calls
-    _, modifiers, virtual_key = fake_user32.register_calls[0]
-    assert modifiers == 0x0002 | 0x0004
+def test_windows_key_conversion_supports_generic_modifiers() -> None:
+    mod_mask, virtual_key = _to_windows_hotkey(("ctrl", "shift"), "o")
+    assert mod_mask == 0x0002 | 0x0004
     assert virtual_key == ord("O")
-    assert backend.unregister_hotkey("binding-generic") is True
 
 
-def test_windows_backend_routes_no_modifier_hotkey_to_fallback() -> None:
-    fake_user32 = _FakeUser32()
-    fake_fallback = _FakeFallback()
+def test_windows_backend_dispatch_pipeline_invokes_action() -> None:
+    client = _FakeWindowsClient()
     backend = WindowsHotkeyBackend(
         logger=logging.getLogger("test.backends"),
         platform_name="win32",
-        user32=fake_user32,
-        kernel32=_FakeKernel32(),
-        fallback=fake_fallback,
+        client=client,
     )
-    assert backend.start(lambda _binding_id: None) is True
-    assert backend.register_hotkey("binding-2", "LCtrl+LShift+O") is True
-    assert fake_fallback.registered == [("binding-2", "LCtrl+LShift+O")]
-    assert fake_user32.register_calls == []
-    assert backend.unregister_hotkey("binding-2") is True
-    assert fake_fallback.unregistered == ["binding-2"]
+    plugin = HotkeyPlugin(
+        plugin_dir=Path("/tmp/edmc_hotkeys"),
+        logger=logging.getLogger("test.backends"),
+        dispatch_executor=InlineDispatchExecutor(),
+        hotkey_backend=backend,
+    )
+    received: list[dict[str, object]] = []
+    assert plugin.register_action(
+        Action(
+            id="overlay.toggle",
+            label="Toggle Overlay",
+            plugin="overlay",
+            callback=lambda **kwargs: received.append(kwargs),
+        )
+    )
+    binding = Binding(
+        id="binding-win",
+        hotkey="Ctrl+Shift+O",
+        action_id="overlay.toggle",
+        payload={"visible": True},
+        enabled=True,
+    )
+    plugin.start()
+    try:
+        assert plugin.register_binding(binding) is True
+        client.trigger("binding-win")
+    finally:
+        plugin.stop()
+
+    assert received == [
+        {
+            "payload": {"visible": True},
+            "source": "backend:windows-registerhotkey",
+            "hotkey": "Ctrl+Shift+O",
+        }
+    ]
 
 
 def test_x11_key_conversion_supports_generic_modifiers() -> None:

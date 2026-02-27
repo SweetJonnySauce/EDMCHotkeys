@@ -85,8 +85,9 @@ Fail criteria:
 
 ### Windows
 1. Confirm Windows backend starts.
-2. Verify modifier hotkeys register and trigger.
-3. Verify no-modifier hotkeys follow fallback behavior (if configured).
+2. Verify generic modifier hotkeys register and trigger (RegisterHotKey path).
+3. Verify side-specific modifier hotkeys (for example `LCtrl+LShift+F1`) trigger via low-level hook.
+4. Verify no-modifier hotkeys register and trigger.
 
 ## Shutdown
 1. Exit EDMC cleanly.

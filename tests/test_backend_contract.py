@@ -22,10 +22,7 @@ class _BadBackend:
         return None
 
 
-class _FakeFallback:
-    def availability(self):
-        return None
-
+class _FakeWindowsClient:
     def start(self, on_hotkey):
         del on_hotkey
         return True
@@ -98,7 +95,7 @@ def test_contract_issues_accept_supported_backends() -> None:
         WindowsHotkeyBackend(
             logger=logging.getLogger("test.contract"),
             platform_name="win32",
-            fallback=_FakeFallback(),
+            client=_FakeWindowsClient(),
         ),
     ]
     for backend in backends:

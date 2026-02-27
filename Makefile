@@ -1,7 +1,7 @@
 PYTHON := $(shell if [ -x .venv/bin/python ]; then echo .venv/bin/python; elif command -v python >/dev/null 2>&1; then echo python; else echo python3; fi)
 VERSION ?= v0.0.0-rc.1
 
-.PHONY: check test compile lint typecheck companion-release-check vendor-xlib vendor-dbus-next install-gnome-companion uninstall-gnome-companion verify-gnome-companion package-gnome-companion release-build release-build-all release-build-linux-x11 release-build-linux-wayland release-build-linux-wayland-gnome
+.PHONY: check test compile lint typecheck companion-release-check vendor-xlib vendor-dbus-next install-gnome-companion uninstall-gnome-companion verify-gnome-companion package-gnome-companion release-build release-build-all release-build-linux-x11 release-build-linux-wayland release-build-linux-wayland-gnome release-build-windows
 
 check: lint typecheck test companion-release-check compile
 
@@ -40,7 +40,7 @@ package-gnome-companion:
 
 release-build: release-build-all
 
-release-build-all: release-build-linux-x11 release-build-linux-wayland release-build-linux-wayland-gnome
+release-build-all: release-build-linux-x11 release-build-linux-wayland release-build-linux-wayland-gnome release-build-windows
 
 release-build-linux-x11:
 	$(PYTHON) scripts/build_release_artifact.py --variant linux-x11 --version $(VERSION)
@@ -50,3 +50,6 @@ release-build-linux-wayland:
 
 release-build-linux-wayland-gnome:
 	$(PYTHON) scripts/build_release_artifact.py --variant linux-wayland-gnome --version $(VERSION)
+
+release-build-windows:
+	$(PYTHON) scripts/build_release_artifact.py --variant windows --version $(VERSION)

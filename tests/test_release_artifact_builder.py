@@ -81,3 +81,15 @@ def test_verify_tree_rejects_global_excluded_paths(tmp_path: Path) -> None:
 
     with pytest.raises(module.ReleaseArtifactError):
         module.verify_tree(root, spec)
+
+
+def test_verify_tree_rejects_forbidden_path_for_windows(tmp_path: Path) -> None:
+    module = _load_builder_module()
+    spec = module.VARIANT_SPECS["windows"]
+    root = tmp_path / "EDMC-Hotkeys"
+    root.mkdir(parents=True, exist_ok=True)
+    _seed_base_plugin_tree(root)
+    (root / "Xlib").mkdir()
+
+    with pytest.raises(module.ReleaseArtifactError):
+        module.verify_tree(root, spec)

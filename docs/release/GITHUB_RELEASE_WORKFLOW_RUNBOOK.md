@@ -1,12 +1,13 @@
 # GitHub Release Workflow Runbook
 
 ## Scope
-Use this runbook to publish EDMC-Hotkeys Linux release artifacts through `.github/workflows/release.yml`.
+Use this runbook to publish EDMC-Hotkeys release artifacts through `.github/workflows/release.yml`.
 
 ## Release Variants
 - `linux-x11`
 - `linux-wayland`
 - `linux-wayland-gnome`
+- `windows`
 
 All artifacts unpack to a single top-level `EDMC-Hotkeys/` folder.
 
@@ -29,6 +30,7 @@ Expected output:
 - `dist/EDMC-Hotkeys-linux-x11-v0.1.0-rc.1.tar.gz`
 - `dist/EDMC-Hotkeys-linux-wayland-v0.1.0-rc.1.tar.gz`
 - `dist/EDMC-Hotkeys-linux-wayland-gnome-v0.1.0-rc.1.tar.gz`
+- `dist/EDMC-Hotkeys-windows-v0.1.0-rc.1.zip`
 
 ## CI Release Behavior
 1. `prepare`:
@@ -37,11 +39,9 @@ Expected output:
 2. `quality-gate`:
    - Runs `make check`.
 3. `build-artifacts`:
-   - Builds each Linux artifact in matrix jobs using `scripts/build_release_artifact.py`.
-4. `windows-deferred`:
-   - Emits explicit deferred status.
-5. `publish`:
-   - Downloads all Linux artifacts.
+   - Builds each artifact in matrix jobs using `scripts/build_release_artifact.py`.
+4. `publish`:
+   - Downloads all artifacts.
    - Generates `SHA256SUMS.txt`.
    - Publishes GitHub release using root `RELEASE_NOTES.md`.
 

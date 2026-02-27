@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import zipfile
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -59,7 +60,8 @@ class VariantSpec:
 
     variant: str
     artifact_suffix: str
-    vendor_script: str
+    vendor_script: str | None
+    archive_format: str
     required_paths: tuple[str, ...]
     forbidden_paths: tuple[str, ...]
     kept_scripts: tuple[str, ...]
@@ -71,6 +73,7 @@ VARIANT_SPECS: dict[str, VariantSpec] = {
         variant="linux-x11",
         artifact_suffix="linux-x11",
         vendor_script="scripts/vendor_xlib.sh",
+        archive_format="tar.gz",
         required_paths=("Xlib", "six.py"),
         forbidden_paths=(
             "dbus_next",
@@ -90,6 +93,7 @@ VARIANT_SPECS: dict[str, VariantSpec] = {
         variant="linux-wayland",
         artifact_suffix="linux-wayland",
         vendor_script="scripts/vendor_dbus_next.sh",
+        archive_format="tar.gz",
         required_paths=("dbus_next",),
         forbidden_paths=(
             "Xlib",
@@ -111,6 +115,7 @@ VARIANT_SPECS: dict[str, VariantSpec] = {
         variant="linux-wayland-gnome",
         artifact_suffix="linux-wayland-gnome",
         vendor_script="scripts/vendor_dbus_next.sh",
+        archive_format="tar.gz",
         required_paths=(
             "dbus_next",
             "companion",
@@ -136,6 +141,30 @@ VARIANT_SPECS: dict[str, VariantSpec] = {
         ),
         include_companion_setup_doc=True,
     ),
+    "windows": VariantSpec(
+        variant="windows",
+        artifact_suffix="windows",
+        vendor_script=None,
+        archive_format="zip",
+        required_paths=(),
+        forbidden_paths=(
+            "Xlib",
+            "six.py",
+            "dbus_next",
+            "companion",
+            "COMPANION_SETUP.md",
+            "scripts/gnome_bridge_send.py",
+            "scripts/install_gnome_bridge_companion.sh",
+            "scripts/uninstall_gnome_bridge_companion.sh",
+            "scripts/verify_gnome_bridge_companion.sh",
+            "scripts/export_companion_bindings.py",
+            "third_party_licenses/python-xlib.LICENSE",
+            "third_party_licenses/six.LICENSE",
+            "third_party_licenses/dbus-next.LICENSE",
+        ),
+        kept_scripts=(),
+        include_companion_setup_doc=False,
+    ),
 }
 
 
@@ -158,7 +187,9 @@ def _copy_workspace(workspace_root: Path) -> None:
     shutil.copytree(REPO_ROOT, workspace_root, ignore=ignore, dirs_exist_ok=False)
 
 
-def _run_vendor_script(workspace_root: Path, script_relpath: str) -> None:
+def _run_vendor_script(workspace_root: Path, script_relpath: str | None) -> None:
+    if not script_relpath:
+        return
     script_path = workspace_root / script_relpath
     if not script_path.exists():
         raise ReleaseArtifactError(f"missing vendor script in workspace: {script_relpath}")
@@ -265,6 +296,22 @@ def _verify_tar_layout(artifact_path: Path) -> None:
             )
 
 
+def _verify_zip_layout(artifact_path: Path) -> None:
+    with zipfile.ZipFile(artifact_path) as archive:
+        top_levels: set[str] = set()
+        for name in archive.namelist():
+            name = name.lstrip("./")
+            if not name:
+                continue
+            top = name.split("/", 1)[0]
+            top_levels.add(top)
+        if top_levels != {TOP_LEVEL_DIR}:
+            joined = ", ".join(sorted(top_levels))
+            raise ReleaseArtifactError(
+                f"artifact must unpack to single top-level '{TOP_LEVEL_DIR}' directory, found: {joined}"
+            )
+
+
 def build_artifact(*, variant: str, version: str, output_dir: Path, keep_work: bool) -> Path:
     if variant not in VARIANT_SPECS:
         raise ReleaseArtifactError(f"unsupported variant: {variant}")
@@ -282,11 +329,22 @@ def build_artifact(*, variant: str, version: str, output_dir: Path, keep_work: b
         apply_variant_policy(workspace_root, spec)
         verify_tree(workspace_root, spec)
 
-        artifact_name = f"{TOP_LEVEL_DIR}-{spec.artifact_suffix}-{version}.tar.gz"
+        artifact_name = f"{TOP_LEVEL_DIR}-{spec.artifact_suffix}-{version}.{spec.archive_format}"
         artifact_path = output_dir / artifact_name
-        with tarfile.open(artifact_path, "w:gz") as archive:
-            archive.add(workspace_root, arcname=TOP_LEVEL_DIR)
-        _verify_tar_layout(artifact_path)
+        if spec.archive_format == "tar.gz":
+            with tarfile.open(artifact_path, "w:gz") as archive:
+                archive.add(workspace_root, arcname=TOP_LEVEL_DIR)
+            _verify_tar_layout(artifact_path)
+        elif spec.archive_format == "zip":
+            with zipfile.ZipFile(artifact_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+                for path in workspace_root.rglob("*"):
+                    if path.is_dir():
+                        continue
+                    arcname = f"{TOP_LEVEL_DIR}/{path.relative_to(workspace_root).as_posix()}"
+                    archive.write(path, arcname)
+            _verify_zip_layout(artifact_path)
+        else:
+            raise ReleaseArtifactError(f"unsupported archive format: {spec.archive_format}")
         return artifact_path
     finally:
         if keep_work:

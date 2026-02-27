@@ -355,7 +355,6 @@ Objective:
 - Create one source of truth for runtime feature flags, current defaults, and retirement conditions.
 
 Touch points:
-- `edmc_hotkeys/feature_flags.py`
 - `docs/requirements-architecture-notes.md`
 - `docs/plans/CROSS_PLATFORM_COMPLEXITY_MINIMIZATION_SPEC.md`
 - `docs/linux-user-setup.md`
