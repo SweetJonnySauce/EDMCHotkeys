@@ -7,6 +7,7 @@ import logging
 import queue
 import sys
 import threading
+import time
 from ctypes import wintypes
 from dataclasses import dataclass, field
 from typing import Callable, Optional, Protocol
@@ -38,6 +39,11 @@ VK_RSHIFT = 0xA1
 VK_LWIN = 0x5B
 VK_RWIN = 0x5C
 _ULONG_PTR = getattr(wintypes, "ULONG_PTR", ctypes.c_size_t)
+_LONG_PTR = getattr(wintypes, "LONG_PTR", ctypes.c_ssize_t)
+_LRESULT = getattr(wintypes, "LRESULT", _LONG_PTR)
+_HMODULE = getattr(wintypes, "HMODULE", ctypes.c_void_p)
+_HINSTANCE = getattr(wintypes, "HINSTANCE", ctypes.c_void_p)
+_HHOOK = getattr(wintypes, "HHOOK", ctypes.c_void_p)
 
 
 class _POINT(ctypes.Structure):
@@ -229,19 +235,44 @@ class WindowsMessageLoopClient:
         self._side_bindings_by_key: dict[int, set[str]] = {}
         self._active_side_bindings: set[str] = set()
         self._side_lock = threading.Lock()
+        self._startup_stage = "idle"
+        self._startup_error: Optional[str] = None
 
     def start(self, on_hotkey: HotkeyCallback) -> bool:
         if self._running:
             return True
         self._callback = on_hotkey
         self._running = True
+        self._startup_error = None
+        self._set_startup_stage("start_requested")
         self._thread_ready.clear()
         self._thread = threading.Thread(target=self._message_loop, daemon=True, name="edmc-hotkeys-win")
+        startup_started_at = time.monotonic()
         self._thread.start()
+        self._logger.debug(
+            "Windows message loop thread started: name=%s ident=%s",
+            self._thread.name,
+            self._thread.ident,
+        )
         if not self._thread_ready.wait(timeout=1.0):
             self._logger.warning("Windows message loop did not start")
+            self._logger.debug(
+                "Windows message loop startup timeout: elapsed_ms=%.1f stage=%s thread_alive=%s thread_ident=%s startup_error=%r",
+                (time.monotonic() - startup_started_at) * 1000.0,
+                self._startup_stage,
+                self._thread.is_alive() if self._thread is not None else False,
+                self._thread.ident if self._thread is not None else None,
+                self._startup_error,
+            )
             self._running = False
             return False
+        self._logger.debug(
+            "Windows message loop startup completed: elapsed_ms=%.1f stage=%s thread_alive=%s startup_error=%r",
+            (time.monotonic() - startup_started_at) * 1000.0,
+            self._startup_stage,
+            self._thread.is_alive() if self._thread is not None else False,
+            self._startup_error,
+        )
         return True
 
     def stop(self) -> None:
@@ -297,6 +328,13 @@ class WindowsMessageLoopClient:
         with self._side_lock:
             self._side_bindings[binding_id] = _RegisteredSideHotkey(key_vk=key_vk, modifiers=parsed.modifiers)
             self._side_bindings_by_key.setdefault(key_vk, set()).add(binding_id)
+        self._logger.debug(
+            "Registered side-specific hotkey: id=%s key_vk=0x%X modifiers=%s hook_handle=%s",
+            binding_id,
+            key_vk,
+            "+".join(parsed.modifiers),
+            self._hook_handle,
+        )
         return True
 
     def _unregister_side_specific(self, binding_id: str) -> bool:
@@ -323,6 +361,14 @@ class WindowsMessageLoopClient:
         self._next_hotkey_id += 1
         if not bool(self._user32.RegisterHotKey(None, hotkey_id, modifiers, virtual_key)):
             self._logger.warning("RegisterHotKey failed for binding '%s' (%s)", binding_id, hotkey)
+            self._logger.debug(
+                "RegisterHotKey diagnostics: id=%s hotkey=%s modifiers=0x%X vk=0x%X %s",
+                binding_id,
+                hotkey,
+                modifiers,
+                virtual_key,
+                _win32_last_error_text(self._kernel32),
+            )
             return False
         self._registered[binding_id] = _RegisteredWindowsHotkey(hotkey_id=hotkey_id, hotkey=hotkey)
         self._id_to_binding[hotkey_id] = binding_id
@@ -344,41 +390,68 @@ class WindowsMessageLoopClient:
             self._active_side_bindings.clear()
 
     def _message_loop(self) -> None:
+        self._set_startup_stage("entered")
         try:
-            self._thread_id = int(self._kernel32.GetCurrentThreadId())
-        except Exception:
-            self._thread_id = None
-        msg = _MSG()
-        if hasattr(self._user32, "PeekMessageW"):
             try:
-                self._user32.PeekMessageW(ctypes.byref(msg), None, 0, 0, 0)
+                self._thread_id = int(self._kernel32.GetCurrentThreadId())
             except Exception:
-                pass
-        self._install_hook()
-        self._thread_ready.set()
+                self._thread_id = None
+            self._set_startup_stage("thread_id_ready")
+            self._logger.debug(
+                "Windows message loop thread initialized: thread_id=%s thread_ident=%s",
+                self._thread_id,
+                threading.get_ident(),
+            )
 
-        while self._running:
-            try:
-                result = int(self._user32.GetMessageW(ctypes.byref(msg), None, 0, 0))
-            except Exception:
-                self._logger.exception("Windows message loop failed")
-                break
-            if result <= 0:
-                break
-            if msg.message == WM_HOTKEY:
-                binding_id = self._id_to_binding.get(int(msg.wParam))
-                if binding_id and self._callback is not None:
-                    try:
-                        self._callback(binding_id)
-                    except Exception:
-                        self._logger.exception("Windows hotkey callback failed")
-            elif msg.message == WM_TASK:
-                self._drain_tasks()
+            msg = _MSG()
+            if hasattr(self._user32, "PeekMessageW"):
+                try:
+                    self._user32.PeekMessageW(ctypes.byref(msg), None, 0, 0, 0)
+                    self._logger.debug("Windows message loop primed with PeekMessageW")
+                except Exception:
+                    self._logger.debug("Windows PeekMessageW failed during startup", exc_info=True)
+            self._set_startup_stage("peek_message_done")
 
-        self._remove_hook()
+            self._install_hook()
+            self._set_startup_stage("hook_install_done")
+            self._thread_ready.set()
+            self._set_startup_stage("ready_set")
+
+            self._set_startup_stage("getmessage_loop_entered")
+            while self._running:
+                try:
+                    result = int(self._user32.GetMessageW(ctypes.byref(msg), None, 0, 0))
+                except Exception:
+                    self._logger.exception("Windows message loop failed")
+                    break
+                if result <= 0:
+                    self._logger.debug(
+                        "Windows message loop exiting on GetMessageW result=%d (%s)",
+                        result,
+                        _win32_last_error_text(self._kernel32),
+                    )
+                    break
+                if msg.message == WM_HOTKEY:
+                    binding_id = self._id_to_binding.get(int(msg.wParam))
+                    if binding_id and self._callback is not None:
+                        try:
+                            self._callback(binding_id)
+                        except Exception:
+                            self._logger.exception("Windows hotkey callback failed")
+                elif msg.message == WM_TASK:
+                    self._drain_tasks()
+        except Exception as exc:
+            self._startup_error = f"{type(exc).__name__}: {exc}"
+            self._logger.exception(
+                "Windows message loop crashed during startup stage '%s'",
+                self._startup_stage,
+            )
+        finally:
+            self._set_startup_stage("exiting")
+            self._remove_hook()
 
     def _install_hook(self) -> None:
-        hook_proc_type = ctypes.WINFUNCTYPE(wintypes.LRESULT, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM)
+        hook_proc_type = ctypes.WINFUNCTYPE(_LRESULT, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM)
 
         def _proc(n_code: int, w_param: int, l_param: int) -> int:
             return self._keyboard_proc(n_code, w_param, l_param)
@@ -390,13 +463,32 @@ class WindowsMessageLoopClient:
                 module_handle = self._kernel32.GetModuleHandleW(None)
             except Exception:
                 module_handle = None
+        self._logger.debug(
+            "Windows hook installation context: module_handle=%r type=%s",
+            module_handle,
+            type(module_handle).__name__,
+        )
         try:
             handle = self._user32.SetWindowsHookExW(WH_KEYBOARD_LL, self._hook_proc_ref, module_handle, 0)
             self._hook_handle = int(handle) if handle else None
         except Exception:
             self._hook_handle = None
+        if self._hook_handle is None and module_handle is not None:
+            self._logger.debug("Retrying SetWindowsHookExW with module_handle=None")
+            try:
+                handle = self._user32.SetWindowsHookExW(WH_KEYBOARD_LL, self._hook_proc_ref, None, 0)
+                self._hook_handle = int(handle) if handle else None
+            except Exception:
+                self._hook_handle = None
         if not self._hook_handle:
             self._logger.warning("Failed to install low-level keyboard hook")
+            self._logger.debug(
+                "SetWindowsHookExW diagnostics: module_handle=%r %s",
+                module_handle,
+                _win32_last_error_text(self._kernel32),
+            )
+        else:
+            self._logger.debug("Installed low-level keyboard hook: handle=%s", self._hook_handle)
 
     def _remove_hook(self) -> None:
         if self._hook_handle and hasattr(self._user32, "UnhookWindowsHookEx"):
@@ -535,7 +627,14 @@ class WindowsMessageLoopClient:
         if self._thread_id is None or not hasattr(self._user32, "PostThreadMessageW"):
             return
         try:
-            self._user32.PostThreadMessageW(self._thread_id, message, 0, 0)
+            posted = bool(self._user32.PostThreadMessageW(self._thread_id, message, 0, 0))
+            if not posted:
+                self._logger.debug(
+                    "PostThreadMessageW returned false: thread_id=%s message=0x%X %s",
+                    self._thread_id,
+                    message,
+                    _win32_last_error_text(self._kernel32),
+                )
         except Exception:
             self._logger.debug("Failed to post Windows message", exc_info=True)
 
@@ -552,6 +651,28 @@ class WindowsMessageLoopClient:
             finally:
                 task.event.set()
 
+    def _set_startup_stage(self, stage: str) -> None:
+        self._startup_stage = stage
+        self._logger.debug("Windows message loop startup stage: %s", stage)
+
+
+def _win32_last_error_text(kernel32: object | None = None) -> str:
+    code = int(ctypes.get_last_error() or 0)
+    if code == 0 and kernel32 is not None and hasattr(kernel32, "GetLastError"):
+        try:
+            code = int(kernel32.GetLastError())
+        except Exception:
+            code = 0
+    if code == 0:
+        return "last_error=0"
+    try:
+        text = ctypes.FormatError(code).strip()
+    except Exception:
+        text = ""
+    if text:
+        return f"last_error={code} ({text})"
+    return f"last_error={code}"
+
 
 def _try_build_windows_client(
     *,
@@ -564,14 +685,20 @@ def _try_build_windows_client(
         return None
     if user32 is None:
         try:
-            user32 = ctypes.windll.user32
+            user32 = ctypes.WinDLL("user32", use_last_error=True)
         except Exception:
-            user32 = None
+            try:
+                user32 = ctypes.windll.user32
+            except Exception:
+                user32 = None
     if kernel32 is None:
         try:
-            kernel32 = ctypes.windll.kernel32
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
         except Exception:
-            kernel32 = None
+            try:
+                kernel32 = ctypes.windll.kernel32
+            except Exception:
+                kernel32 = None
     if user32 is None or kernel32 is None:
         return None
     required_user32 = {
@@ -590,7 +717,113 @@ def _try_build_windows_client(
     if not hasattr(kernel32, "GetCurrentThreadId"):
         logger.debug("Windows kernel32 APIs missing required symbols")
         return None
+    _configure_windows_api_signatures(user32=user32, kernel32=kernel32, logger=logger)
     return WindowsMessageLoopClient(logger=logger, user32=user32, kernel32=kernel32)
+
+
+def _configure_windows_api_signatures(*, user32: object, kernel32: object, logger: logging.Logger) -> None:
+    _set_ctype_signature(
+        kernel32,
+        "GetCurrentThreadId",
+        argtypes=[],
+        restype=wintypes.DWORD,
+        logger=logger,
+    )
+    _set_ctype_signature(
+        kernel32,
+        "GetModuleHandleW",
+        argtypes=[wintypes.LPCWSTR],
+        restype=_HMODULE,
+        logger=logger,
+    )
+    _set_ctype_signature(
+        kernel32,
+        "GetLastError",
+        argtypes=[],
+        restype=wintypes.DWORD,
+        logger=logger,
+    )
+    _set_ctype_signature(
+        user32,
+        "RegisterHotKey",
+        argtypes=[wintypes.HWND, ctypes.c_int, wintypes.UINT, wintypes.UINT],
+        restype=wintypes.BOOL,
+        logger=logger,
+    )
+    _set_ctype_signature(
+        user32,
+        "UnregisterHotKey",
+        argtypes=[wintypes.HWND, ctypes.c_int],
+        restype=wintypes.BOOL,
+        logger=logger,
+    )
+    _set_ctype_signature(
+        user32,
+        "GetMessageW",
+        argtypes=[ctypes.POINTER(_MSG), wintypes.HWND, wintypes.UINT, wintypes.UINT],
+        restype=ctypes.c_int,
+        logger=logger,
+    )
+    _set_ctype_signature(
+        user32,
+        "PeekMessageW",
+        argtypes=[ctypes.POINTER(_MSG), wintypes.HWND, wintypes.UINT, wintypes.UINT, wintypes.UINT],
+        restype=wintypes.BOOL,
+        logger=logger,
+    )
+    _set_ctype_signature(
+        user32,
+        "PostThreadMessageW",
+        argtypes=[wintypes.DWORD, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM],
+        restype=wintypes.BOOL,
+        logger=logger,
+    )
+    _set_ctype_signature(
+        user32,
+        "CallNextHookEx",
+        argtypes=[_HHOOK, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM],
+        restype=_LRESULT,
+        logger=logger,
+    )
+    _set_ctype_signature(
+        user32,
+        "SetWindowsHookExW",
+        argtypes=[ctypes.c_int, ctypes.c_void_p, _HINSTANCE, wintypes.DWORD],
+        restype=_HHOOK,
+        logger=logger,
+    )
+    _set_ctype_signature(
+        user32,
+        "UnhookWindowsHookEx",
+        argtypes=[_HHOOK],
+        restype=wintypes.BOOL,
+        logger=logger,
+    )
+    _set_ctype_signature(
+        user32,
+        "GetAsyncKeyState",
+        argtypes=[ctypes.c_int],
+        restype=ctypes.c_short,
+        logger=logger,
+    )
+
+
+def _set_ctype_signature(
+    library: object,
+    symbol: str,
+    *,
+    argtypes: list[object],
+    restype: object,
+    logger: logging.Logger,
+) -> None:
+    func = getattr(library, symbol, None)
+    if func is None:
+        return
+    try:
+        func.argtypes = argtypes
+        func.restype = restype
+    except Exception as exc:
+        logger.debug("Unable to configure ctypes signature for %s: %s", symbol, exc)
 
 
 def _requires_side_specific(modifiers: tuple[str, ...]) -> bool:
