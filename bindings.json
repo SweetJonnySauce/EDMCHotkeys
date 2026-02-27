@@ -57,7 +57,7 @@
         ],
         "key": "f5",
         "action_id": "Color",
-        "enabled": false,
+        "enabled": true,
         "payload": {
           "color": "lime"
         }
@@ -71,7 +71,7 @@
         ],
         "key": "f6",
         "action_id": "Color",
-        "enabled": false,
+        "enabled": true,
         "payload": {
           "color": "deepskyblue"
         }

@@ -12,9 +12,11 @@ from .settings_state import BindingRow, SettingsState, ValidationIssue
 try:
     import tkinter as tk
     from tkinter import ttk
+    from tkinter import font as tkfont
 except Exception:  # pragma: no cover - exercised only in EDMC runtime without tkinter
     tk = None
     ttk = None
+    tkfont = None
 
 
 _SHIFT_MASK = 0x0001
@@ -69,6 +71,29 @@ _SHIFTED_SYMBOL_TO_BASE_KEY = {
 }
 
 
+_COLUMN_SPECS = (
+    ("Binding ID", 16),
+    ("Hotkey", 18),
+    ("Plugin", 16),
+    ("Action", 28),
+    ("Payload", 24),
+    ("Enabled", 7),
+    ("", 8),
+)
+_ENABLED_CHOICES = ("Yes", "No")
+_CELL_PAD_X = (0, 12)
+_CELL_PAD_Y = 4
+_HEADER_PAD_Y = (0, 6)
+
+
+def _enabled_label(value: bool) -> str:
+    return "Yes" if value else "No"
+
+
+def _enabled_from_label(value: str) -> bool:
+    return value.strip().lower() in {"yes", "true", "1"}
+
+
 @dataclass
 class _RowWidgets:
     row_id_var: object
@@ -78,7 +103,7 @@ class _RowWidgets:
     payload_var: object
     payload: dict | None
     enabled_var: object
-    frame: object
+    widgets: tuple[object, ...]
 
 
 class SettingsPanel:
@@ -102,6 +127,7 @@ class SettingsPanel:
         self.frame = self._widget_class("Frame", ttk.Frame)(parent)
         self._row_widgets: list[_RowWidgets] = []
         self._active_modifier_tokens: dict[str, dict[str, str]] = {}
+        self._header_font: object | None = None
 
         self._action_values = [option.action_id for option in state.action_options]
         self._plugin_values = sorted({option.plugin for option in state.action_options if option.plugin})
@@ -113,80 +139,105 @@ class SettingsPanel:
     def add_row(self, row: BindingRow) -> None:
         if tk is None or ttk is None:
             return
-        row_frame = self._widget_class("Frame", ttk.Frame)(self._rows_inner)
-        row_frame.grid(row=len(self._row_widgets), column=0, sticky="ew", pady=1)
-        row_frame.columnconfigure(1, weight=1)
-        row_frame.columnconfigure(3, weight=1)
-        row_frame.columnconfigure(4, weight=1)
 
         row_id_var = tk.StringVar(value=row.id)
         hotkey_var = tk.StringVar(value=row.hotkey)
         plugin_var = tk.StringVar(value=row.plugin)
         action_var = tk.StringVar(value=row.action_id)
         payload_var = tk.StringVar(value=row.payload_text)
-        enabled_var = tk.BooleanVar(value=row.enabled)
+        enabled_var = tk.StringVar(value=_enabled_label(row.enabled))
 
-        self._widget_class("Entry", ttk.Entry)(row_frame, textvariable=row_id_var, width=16).grid(
-            row=0,
-            column=0,
-            padx=2,
-            sticky="ew",
+        row_index = len(self._row_widgets) + 1
+        entry_id = self._widget_class("Entry", ttk.Entry)(
+            self._rows_inner,
+            textvariable=row_id_var,
+            width=_COLUMN_SPECS[0][1],
         )
-        hotkey_entry = self._widget_class("Entry", ttk.Entry)(row_frame, textvariable=hotkey_var, width=18)
+        entry_id.grid(
+            row=row_index,
+            column=0,
+            padx=_CELL_PAD_X,
+            pady=_CELL_PAD_Y,
+            sticky="w",
+        )
+        hotkey_entry = self._widget_class(
+            "Entry",
+            ttk.Entry,
+        )(self._rows_inner, textvariable=hotkey_var, width=_COLUMN_SPECS[1][1])
         hotkey_entry.grid(
-            row=0,
+            row=row_index,
             column=1,
-            padx=2,
-            sticky="ew",
+            padx=_CELL_PAD_X,
+            pady=_CELL_PAD_Y,
+            sticky="w",
         )
         hotkey_entry.bind("<KeyPress>", lambda event, var=hotkey_var, widget=hotkey_entry: self._capture_hotkey(event, var, widget))
         hotkey_entry.bind("<KeyRelease>", lambda event, widget=hotkey_entry: self._release_modifier(event, widget))
         hotkey_entry.bind("<FocusOut>", lambda _event, widget=hotkey_entry: self._clear_modifiers(widget))
-        self._widget_class("Combobox", ttk.Combobox)(
-            row_frame,
+        plugin_combo = self._widget_class("Combobox", ttk.Combobox)(
+            self._rows_inner,
             textvariable=plugin_var,
             values=self._plugin_values,
             state="readonly",
-            width=16,
-        ).grid(row=0, column=2, padx=2, sticky="ew")
-        self._widget_class("Combobox", ttk.Combobox)(
-            row_frame,
+            width=_COLUMN_SPECS[2][1],
+        )
+        plugin_combo.grid(row=row_index, column=2, padx=_CELL_PAD_X, pady=_CELL_PAD_Y, sticky="w")
+        action_combo = self._widget_class("Combobox", ttk.Combobox)(
+            self._rows_inner,
             textvariable=action_var,
             values=self._action_values,
             state="readonly",
-            width=28,
-        ).grid(row=0, column=3, padx=2, sticky="ew")
-        self._widget_class("Entry", ttk.Entry)(row_frame, textvariable=payload_var, width=24).grid(
-            row=0,
+            width=_COLUMN_SPECS[3][1],
+        )
+        action_combo.grid(row=row_index, column=3, padx=_CELL_PAD_X, pady=_CELL_PAD_Y, sticky="w")
+        payload_entry = self._widget_class("Entry", ttk.Entry)(
+            self._rows_inner,
+            textvariable=payload_var,
+            width=_COLUMN_SPECS[4][1],
+        )
+        payload_entry.grid(
+            row=row_index,
             column=4,
-            padx=2,
-            sticky="ew",
+            padx=_CELL_PAD_X,
+            pady=_CELL_PAD_Y,
+            sticky="w",
         )
-        self._widget_class("Checkbutton", ttk.Checkbutton)(row_frame, variable=enabled_var).grid(
-            row=0,
-            column=5,
-            padx=2,
+        enabled_combo = self._widget_class("Combobox", ttk.Combobox)(
+            self._rows_inner,
+            textvariable=enabled_var,
+            values=_ENABLED_CHOICES,
+            state="readonly",
+            width=_COLUMN_SPECS[5][1],
         )
-        self._widget_class("Button", ttk.Button)(
-            row_frame,
+        enabled_combo.grid(row=row_index, column=5, padx=_CELL_PAD_X, pady=_CELL_PAD_Y, sticky="w")
+        remove_button = self._widget_class("Button", ttk.Button)(
+            self._rows_inner,
             text="Remove",
-            command=lambda frame=row_frame: self._remove_row(frame),
-            width=8,
-        ).grid(row=0, column=6, padx=2)
-        self._bind_mousewheel_recursive(row_frame)
-
-        self._row_widgets.append(
-            _RowWidgets(
-                row_id_var=row_id_var,
-                hotkey_var=hotkey_var,
-                plugin_var=plugin_var,
-                action_var=action_var,
-                payload_var=payload_var,
-                payload=row.payload,
-                enabled_var=enabled_var,
-                frame=row_frame,
-            )
+            width=_COLUMN_SPECS[6][1],
         )
+        remove_button.grid(row=row_index, column=6, pady=_CELL_PAD_Y, sticky="w")
+        self._bind_mousewheel_recursive(self._rows_inner)
+
+        row_widgets = _RowWidgets(
+            row_id_var=row_id_var,
+            hotkey_var=hotkey_var,
+            plugin_var=plugin_var,
+            action_var=action_var,
+            payload_var=payload_var,
+            payload=row.payload,
+            enabled_var=enabled_var,
+            widgets=(
+                entry_id,
+                hotkey_entry,
+                plugin_combo,
+                action_combo,
+                payload_entry,
+                enabled_combo,
+                remove_button,
+            ),
+        )
+        remove_button.configure(command=lambda widgets=row_widgets: self._remove_row(widgets))
+        self._row_widgets.append(row_widgets)
         self._refresh_row_positions()
         self._refresh_scroll_region()
 
@@ -201,7 +252,7 @@ class SettingsPanel:
                     action_id=row.action_var.get().strip(),
                     payload=row.payload,
                     payload_text=row.payload_var.get().strip(),
-                    enabled=bool(row.enabled_var.get()),
+                    enabled=_enabled_from_label(str(row.enabled_var.get())),
                 )
             )
         return rows
@@ -220,29 +271,51 @@ class SettingsPanel:
             return
 
         self.frame.columnconfigure(0, weight=1)
-        header = self._widget_class("Frame", ttk.Frame)(self.frame)
-        header.grid(row=0, column=0, sticky="ew")
-        headers = ["Binding ID", "Hotkey", "Plugin", "Action", "Payload", "Enabled", ""]
-        for index, label in enumerate(headers):
-            self._widget_class("Label", ttk.Label)(header, text=label).grid(row=0, column=index, padx=2, sticky="w")
 
         body = self._widget_class("Frame", ttk.Frame)(self.frame)
         body.grid(row=1, column=0, sticky="nsew")
         body.columnconfigure(0, weight=1)
-        body.rowconfigure(0, weight=1)
+        body.rowconfigure(1, weight=1)
+
+        style = ttk.Style()
+        style.configure("Hotkeys.TEntry", padding=0)
+        style.configure("Hotkeys.TCombobox", padding=0)
+
+        header_font = None
+        if tkfont is not None:
+            style = ttk.Style()
+            font_name = style.lookup("TLabel", "font") or "TkDefaultFont"
+            try:
+                base_font = tkfont.nametofont(font_name)
+            except Exception:
+                base_font = tkfont.nametofont("TkDefaultFont")
+            header_font = tkfont.Font(font=base_font, weight="bold")
+            self._header_font = header_font
+            style.configure("Hotkeys.Header.TLabel", font=header_font)
 
         self._canvas = tk.Canvas(body, borderwidth=0, highlightthickness=0, height=200)
-        self._canvas.grid(row=0, column=0, sticky="nsew")
+        self._canvas.grid(row=1, column=0, sticky="nsew")
         scrollbar = self._widget_class("Scrollbar", ttk.Scrollbar)(
             body,
             orient="vertical",
             command=self._canvas.yview,
         )
-        scrollbar.grid(row=0, column=1, sticky="ns")
+        scrollbar.grid(row=1, column=1, sticky="ns")
         self._canvas.configure(yscrollcommand=scrollbar.set)
-
+        scrollbar_width = scrollbar.winfo_reqwidth()
+        body.columnconfigure(1, minsize=scrollbar_width)
         self._rows_inner = self._widget_class("Frame", ttk.Frame)(self._canvas)
-        self._rows_inner.columnconfigure(0, weight=1)
+        for index, (label, width) in enumerate(_COLUMN_SPECS):
+            label_kwargs = {"text": label, "width": width, "anchor": "w"}
+            if header_font is not None:
+                label_kwargs["style"] = "Hotkeys.Header.TLabel"
+            self._widget_class("Label", ttk.Label)(self._rows_inner, **label_kwargs).grid(
+                row=0,
+                column=index,
+                padx=_CELL_PAD_X if index < len(_COLUMN_SPECS) - 1 else 0,
+                pady=_HEADER_PAD_Y,
+                sticky="w",
+            )
         self._canvas_window = self._canvas.create_window((0, 0), window=self._rows_inner, anchor="nw")
         self._rows_inner.bind("<Configure>", lambda _evt: self._refresh_scroll_region())
         self._canvas.bind("<Configure>", self._on_canvas_configure)
@@ -267,11 +340,13 @@ class SettingsPanel:
 
         self._bind_mousewheel_recursive(self.frame)
 
-    def _remove_row(self, row_frame: object) -> None:
+    def _remove_row(self, target_row: _RowWidgets) -> None:
         remaining: list[_RowWidgets] = []
         for row in self._row_widgets:
-            if row.frame is row_frame:
-                row.frame.destroy()
+            if row is target_row:
+                for widget in row.widgets:
+                    if hasattr(widget, "destroy"):
+                        widget.destroy()
                 continue
             remaining.append(row)
         self._row_widgets = remaining
@@ -280,7 +355,9 @@ class SettingsPanel:
 
     def _refresh_row_positions(self) -> None:
         for index, row in enumerate(self._row_widgets):
-            row.frame.grid_configure(row=index)
+            for column, widget in enumerate(row.widgets):
+                if hasattr(widget, "grid_configure"):
+                    widget.grid_configure(row=index + 1, column=column)
 
     def _on_canvas_configure(self, event: object) -> None:
         if tk is None:
