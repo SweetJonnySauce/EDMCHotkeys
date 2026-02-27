@@ -11,6 +11,10 @@ on:
         required: true
         type: string
 
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
 permissions:
   contents: write
 
@@ -20,7 +24,6 @@ jobs:
     outputs:
       version: ${{ steps.meta.outputs.version }}
       prerelease: ${{ steps.meta.outputs.prerelease }}
-      release_exists: ${{ steps.release_check.outputs.exists }}
     steps:
       - name: Resolve release metadata
         id: meta
@@ -44,21 +47,6 @@ jobs:
           fi
           echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "prerelease=${prerelease}" >> "$GITHUB_OUTPUT"
-
-      - name: Check for existing release
-        id: release_check
-        env:
-          GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.meta.outputs.version }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          if gh release view "${VERSION}" >/dev/null 2>&1; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "Release already exists for ${VERSION}"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          fi
 
   quality-gate:
     runs-on: ubuntu-latest
@@ -165,11 +153,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.prepare.outputs.version }}
           PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
-          RELEASE_EXISTS: ${{ needs.prepare.outputs.release_exists }}
         shell: bash
         run: |
           set -euo pipefail
-          if [[ "${RELEASE_EXISTS}" == "true" ]]; then
+          if gh release view "${VERSION}" >/dev/null 2>&1; then
             echo "Release ${VERSION} already exists; uploading assets and updating notes."
             gh release upload "${VERSION}" dist/*.tar.gz dist/SHA256SUMS.txt --clobber
             edit_flags=(--title "${VERSION}" --notes-file dist/RELEASE_NOTES.release.md)
@@ -182,5 +169,13 @@ jobs:
             if [[ "${PRERELEASE}" == "true" ]]; then
               flags+=(--prerelease)
             fi
-            gh release create "${VERSION}" "${flags[@]}" dist/*.tar.gz dist/SHA256SUMS.txt
+            if ! gh release create "${VERSION}" "${flags[@]}" dist/*.tar.gz dist/SHA256SUMS.txt; then
+              echo "Release create failed; retrying as upload/edit in case of race."
+              gh release upload "${VERSION}" dist/*.tar.gz dist/SHA256SUMS.txt --clobber
+              edit_flags=(--title "${VERSION}" --notes-file dist/RELEASE_NOTES.release.md)
+              if [[ "${PRERELEASE}" == "true" ]]; then
+                edit_flags+=(--prerelease)
+              fi
+              gh release edit "${VERSION}" "${edit_flags[@]}"
+            fi
           fi
