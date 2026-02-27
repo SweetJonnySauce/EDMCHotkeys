@@ -23,6 +23,7 @@ VERSION_PATTERN = re.compile(r"^v\d+\.\d+\.\d+(?:-rc\.\d+)?$")
 GLOBAL_EXCLUDES = (
     ".git",
     ".github",
+    ".gitignore",
     ".venv",
     ".pytest_cache",
     ".mypy_cache",
@@ -33,6 +34,7 @@ GLOBAL_EXCLUDES = (
     "tests",
     "AGENTS.md",
     "Makefile",
+    "RELEASE_NOTES.md",
     "requirements-dev.txt",
     "bindings.json",
 )

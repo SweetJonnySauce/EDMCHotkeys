@@ -94,6 +94,7 @@ Current iteration:
   - `docs/`
   - `tests/`
   - `AGENTS.md`
+  - `.gitignore`
   - `.git/`
   - `.github/`
   - `.venv/`
@@ -102,6 +103,7 @@ Current iteration:
   - `dist/`
   - `requirements-dev.txt`
   - `Makefile`
+  - `RELEASE_NOTES.md`
   - `bindings.json`
 - Recommended additional excludes:
   - `*.pyc`

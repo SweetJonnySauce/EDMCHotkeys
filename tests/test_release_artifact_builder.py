@@ -78,6 +78,7 @@ def test_verify_tree_rejects_global_excluded_paths(tmp_path: Path) -> None:
     (root / "Xlib").mkdir()
     (root / "six.py").write_text("", encoding="utf-8")
     (root / "docs").mkdir()
+    (root / "RELEASE_NOTES.md").write_text("notes", encoding="utf-8")
 
     with pytest.raises(module.ReleaseArtifactError):
         module.verify_tree(root, spec)
