@@ -20,6 +20,7 @@ jobs:
     outputs:
       version: ${{ steps.meta.outputs.version }}
       prerelease: ${{ steps.meta.outputs.prerelease }}
+      release_exists: ${{ steps.release_check.outputs.exists }}
     steps:
       - name: Resolve release metadata
         id: meta
@@ -44,7 +45,8 @@ jobs:
           echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "prerelease=${prerelease}" >> "$GITHUB_OUTPUT"
 
-      - name: Fail if release already exists
+      - name: Check for existing release
+        id: release_check
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.meta.outputs.version }}
@@ -52,8 +54,10 @@ jobs:
         run: |
           set -euo pipefail
           if gh release view "${VERSION}" >/dev/null 2>&1; then
-            echo "Release already exists for ${VERSION}" >&2
-            exit 1
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Release already exists for ${VERSION}"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
   quality-gate:
@@ -161,11 +165,22 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.prepare.outputs.version }}
           PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+          RELEASE_EXISTS: ${{ needs.prepare.outputs.release_exists }}
         shell: bash
         run: |
           set -euo pipefail
-          flags=(--target "${GITHUB_SHA}" --title "${VERSION}" --notes-file dist/RELEASE_NOTES.release.md)
-          if [[ "${PRERELEASE}" == "true" ]]; then
-            flags+=(--prerelease)
+          if [[ "${RELEASE_EXISTS}" == "true" ]]; then
+            echo "Release ${VERSION} already exists; uploading assets and updating notes."
+            gh release upload "${VERSION}" dist/*.tar.gz dist/SHA256SUMS.txt --clobber
+            edit_flags=(--title "${VERSION}" --notes-file dist/RELEASE_NOTES.release.md)
+            if [[ "${PRERELEASE}" == "true" ]]; then
+              edit_flags+=(--prerelease)
+            fi
+            gh release edit "${VERSION}" "${edit_flags[@]}"
+          else
+            flags=(--target "${GITHUB_SHA}" --title "${VERSION}" --notes-file dist/RELEASE_NOTES.release.md)
+            if [[ "${PRERELEASE}" == "true" ]]; then
+              flags+=(--prerelease)
+            fi
+            gh release create "${VERSION}" "${flags[@]}" dist/*.tar.gz dist/SHA256SUMS.txt
           fi
-          gh release create "${VERSION}" "${flags[@]}" dist/*.tar.gz dist/SHA256SUMS.txt
