@@ -4,7 +4,13 @@ import logging
 import threading
 import time
 
-from edmc_hotkeys.registry import Action, ActionRegistry, QueuedMainThreadDispatchExecutor
+from edmc_hotkeys.registry import (
+    ACTION_CARDINALITY_MULTI,
+    ACTION_CARDINALITY_SINGLE,
+    Action,
+    ActionRegistry,
+    QueuedMainThreadDispatchExecutor,
+)
 
 
 class RecordingDispatchExecutor:
@@ -47,6 +53,51 @@ def test_register_action_rejects_invalid_thread_policy() -> None:
 
     assert registry.register_action(action) is False
     assert registry.list_actions() == []
+
+
+def test_register_action_defaults_cardinality_to_single() -> None:
+    registry = ActionRegistry()
+    action = Action(
+        id="plugin.default-cardinality",
+        label="DefaultCardinality",
+        plugin="plugin",
+        callback=lambda **_: None,
+    )
+
+    assert registry.register_action(action) is True
+    assert registry.list_actions()[0].cardinality == ACTION_CARDINALITY_SINGLE
+
+
+def test_register_action_normalizes_invalid_cardinality_with_warning(caplog) -> None:
+    registry = ActionRegistry()
+    action = Action(
+        id="plugin.invalid-cardinality",
+        label="InvalidCardinality",
+        plugin="plugin",
+        callback=lambda **_: None,
+        cardinality="not-a-real-mode",
+    )
+
+    with caplog.at_level(logging.WARNING):
+        result = registry.register_action(action)
+
+    assert result is True
+    assert registry.list_actions()[0].cardinality == ACTION_CARDINALITY_SINGLE
+    assert "Invalid cardinality" in caplog.text
+
+
+def test_register_action_normalizes_mixed_case_multi_cardinality() -> None:
+    registry = ActionRegistry()
+    action = Action(
+        id="plugin.mixed-case-multi",
+        label="MixedCaseMulti",
+        plugin="plugin",
+        callback=lambda **_: None,
+        cardinality="MuLtI",
+    )
+
+    assert registry.register_action(action) is True
+    assert registry.list_actions()[0].cardinality == ACTION_CARDINALITY_MULTI
 
 
 def test_invoke_action_missing_id_returns_false(caplog) -> None:

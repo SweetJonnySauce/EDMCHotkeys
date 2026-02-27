@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import logging
+import sys
 from dataclasses import dataclass
 from typing import Optional
 
 from .hotkey import CANONICAL_MODIFIER_ORDER, normalize_key_token, pretty_hotkey_text
+from .registry import ACTION_CARDINALITY_SINGLE, normalize_action_cardinality
 from .settings_state import BindingRow, SettingsState, ValidationIssue
 
 try:
@@ -23,6 +25,12 @@ _SHIFT_MASK = 0x0001
 _CONTROL_MASK = 0x0004
 _ALT_MASK = 0x0008
 _SUPER_MASK = 0x0040
+_MODIFIER_STATE_FLAGS = (
+    ("ctrl", _CONTROL_MASK),
+    ("alt", _ALT_MASK),
+    ("shift", _SHIFT_MASK),
+    ("win", _SUPER_MASK),
+)
 _MODIFIER_KEYSYMS = {
     "Shift_L",
     "Shift_R",
@@ -99,8 +107,11 @@ class _RowWidgets:
     row_id_var: object
     hotkey_var: object
     plugin_var: object
+    plugin_combo: object
     action_var: object
+    action_combo: object
     payload_var: object
+    payload_entry: object
     payload: dict | None
     enabled_var: object
     widgets: tuple[object, ...]
@@ -128,8 +139,8 @@ class SettingsPanel:
         self._row_widgets: list[_RowWidgets] = []
         self._active_modifier_tokens: dict[str, dict[str, str]] = {}
         self._header_font: object | None = None
+        self._refreshing_action_options = False
 
-        self._action_values = [option.action_id for option in state.action_options]
         self._plugin_values = sorted({option.plugin for option in state.action_options if option.plugin})
 
         self._build_layout()
@@ -185,7 +196,7 @@ class SettingsPanel:
         action_combo = self._widget_class("Combobox", ttk.Combobox)(
             self._rows_inner,
             textvariable=action_var,
-            values=self._action_values,
+            values=(),
             state="readonly",
             width=_COLUMN_SPECS[3][1],
         )
@@ -222,8 +233,11 @@ class SettingsPanel:
             row_id_var=row_id_var,
             hotkey_var=hotkey_var,
             plugin_var=plugin_var,
+            plugin_combo=plugin_combo,
             action_var=action_var,
+            action_combo=action_combo,
             payload_var=payload_var,
+            payload_entry=payload_entry,
             payload=row.payload,
             enabled_var=enabled_var,
             widgets=(
@@ -236,10 +250,13 @@ class SettingsPanel:
                 remove_button,
             ),
         )
+        plugin_var.trace_add("write", lambda *_args, widgets=row_widgets: self._on_plugin_value_changed(widgets))
+        action_var.trace_add("write", lambda *_args, widgets=row_widgets: self._on_action_value_changed(widgets))
         remove_button.configure(command=lambda widgets=row_widgets: self._remove_row(widgets))
         self._row_widgets.append(row_widgets)
         self._refresh_row_positions()
         self._refresh_scroll_region()
+        self._refresh_all_action_options()
 
     def get_rows(self) -> list[BindingRow]:
         rows: list[BindingRow] = []
@@ -352,6 +369,77 @@ class SettingsPanel:
         self._row_widgets = remaining
         self._refresh_row_positions()
         self._refresh_scroll_region()
+        self._refresh_all_action_options()
+
+    def _on_plugin_value_changed(self, _row: _RowWidgets) -> None:
+        self._refresh_all_action_options()
+
+    def _on_action_value_changed(self, _row: _RowWidgets) -> None:
+        self._refresh_all_action_options()
+
+    def _refresh_all_action_options(self) -> None:
+        if self._refreshing_action_options:
+            return
+        self._refreshing_action_options = True
+        try:
+            for row in self._row_widgets:
+                self._refresh_row_action_options(row)
+        finally:
+            self._refreshing_action_options = False
+
+    def _refresh_row_action_options(self, row: _RowWidgets) -> None:
+        filtered_values = self._filtered_action_values(row)
+        self._set_combobox_values(row.action_combo, filtered_values)
+        current_action = row.action_var.get().strip()
+        if current_action and current_action not in filtered_values:
+            row.action_var.set("")
+            row.payload_var.set("")
+
+    def _filtered_action_values(self, row: _RowWidgets) -> tuple[str, ...]:
+        plugin = row.plugin_var.get().strip()
+        if not plugin:
+            return ()
+        plugin_key = plugin.casefold()
+        assigned_single_actions = self._assigned_single_actions_from_other_enabled_rows(row)
+        values: list[str] = []
+        for option in self._state.action_options:
+            option_plugin = option.plugin.strip()
+            if not option_plugin or option_plugin.casefold() != plugin_key:
+                continue
+            option_cardinality = normalize_action_cardinality(
+                getattr(option, "cardinality", ACTION_CARDINALITY_SINGLE)
+            )
+            if option_cardinality == ACTION_CARDINALITY_SINGLE and option.action_id in assigned_single_actions:
+                continue
+            values.append(option.action_id)
+        return tuple(values)
+
+    def _assigned_single_actions_from_other_enabled_rows(self, target_row: _RowWidgets) -> set[str]:
+        option_by_id = {option.action_id: option for option in self._state.action_options}
+        assigned: set[str] = set()
+        for row in self._row_widgets:
+            if row is target_row:
+                continue
+            if not _enabled_from_label(str(row.enabled_var.get())):
+                continue
+            action_id = row.action_var.get().strip()
+            if not action_id:
+                continue
+            option = option_by_id.get(action_id)
+            option_cardinality = normalize_action_cardinality(
+                getattr(option, "cardinality", ACTION_CARDINALITY_SINGLE) if option is not None else ACTION_CARDINALITY_SINGLE
+            )
+            if option_cardinality != ACTION_CARDINALITY_SINGLE:
+                continue
+            assigned.add(action_id)
+        return assigned
+
+    def _set_combobox_values(self, combo: object, values: tuple[str, ...]) -> None:
+        if hasattr(combo, "configure"):
+            combo.configure(values=values)
+            return
+        if hasattr(combo, "__setitem__"):
+            combo["values"] = values
 
     def _refresh_row_positions(self) -> None:
         for index, row in enumerate(self._row_widgets):
@@ -384,12 +472,35 @@ class SettingsPanel:
         keysym = str(getattr(event, "keysym", "") or "")
         if _track_modifier_press(keysym, self._active_modifier_tokens, widget):
             return "break"
+        state = int(getattr(event, "state", 0))
+        char = str(getattr(event, "char", "") or "")
         active_tokens = tuple(self._active_modifier_tokens.get(str(widget), {}).values())
-        captured = hotkey_from_event(
-            event,
+        captured, resolved_groups, ambiguous_groups = _hotkey_from_parts_with_details(
+            state=state,
+            keysym=keysym,
+            char=char,
             active_modifiers=active_tokens,
             supports_side_specific_modifiers=self._supports_side_specific_modifiers,
+            is_windows=_is_windows_platform(),
         )
+        if self._logger.isEnabledFor(logging.DEBUG):
+            self._logger.debug(
+                "Hotkey capture resolved: keysym=%s char=%r state=0x%X active_modifiers=%s resolved_groups=%s ambiguous_groups=%s captured=%s",
+                keysym,
+                char,
+                state,
+                active_tokens,
+                resolved_groups,
+                ambiguous_groups,
+                captured,
+            )
+        if captured is not None and ambiguous_groups:
+            self._logger.warning(
+                "Ambiguous Windows modifier state during hotkey capture: groups=%s keysym=%s state=0x%X",
+                ",".join(ambiguous_groups),
+                keysym,
+                state,
+            )
         if captured is None:
             if keysym in _MODIFIER_KEYSYMS:
                 return "break"
@@ -458,28 +569,74 @@ def hotkey_from_parts(
     supports_side_specific_modifiers: bool = True,
 ) -> str | None:
     """Convert key event parts into pretty hotkey text."""
+    captured, _resolved_groups, _ambiguous_groups = _hotkey_from_parts_with_details(
+        state=state,
+        keysym=keysym,
+        char=char,
+        active_modifiers=active_modifiers,
+        supports_side_specific_modifiers=supports_side_specific_modifiers,
+        is_windows=_is_windows_platform(),
+    )
+    return captured
+
+
+def _hotkey_from_parts_with_details(
+    *,
+    state: int,
+    keysym: str,
+    char: str,
+    active_modifiers: tuple[str, ...] = (),
+    supports_side_specific_modifiers: bool = True,
+    is_windows: bool,
+) -> tuple[str | None, dict[str, str], tuple[str, ...]]:
+    """Return a captured hotkey plus modifier-resolution details."""
     if keysym in _MODIFIER_KEYSYMS:
-        return None
+        return None, {}, ()
 
     key = _normalize_hotkey_key(keysym=keysym, char=char)
     if key is None:
-        return None
+        return None, {}, ()
 
+    grouped, ambiguous_groups = _resolve_modifier_groups(
+        state=state,
+        active_modifiers=active_modifiers,
+        supports_side_specific_modifiers=supports_side_specific_modifiers,
+        is_windows=is_windows,
+    )
+
+    ordered = tuple(token for token in CANONICAL_MODIFIER_ORDER if token in grouped.values())
+    return pretty_hotkey_text(modifiers=ordered, key=key), grouped, ambiguous_groups
+
+
+def _resolve_modifier_groups(
+    *,
+    state: int,
+    active_modifiers: tuple[str, ...],
+    supports_side_specific_modifiers: bool,
+    is_windows: bool,
+) -> tuple[dict[str, str], tuple[str, ...]]:
+    """Resolve final modifier tokens and any ambiguous state-only groups."""
     grouped = _group_modifier_tokens(active_modifiers)
-    if state & _CONTROL_MASK:
-        grouped.setdefault("ctrl", _default_modifier_token("ctrl", supports_side_specific_modifiers))
-    if state & _ALT_MASK:
-        grouped.setdefault("alt", _default_modifier_token("alt", supports_side_specific_modifiers))
-    if state & _SHIFT_MASK:
-        grouped.setdefault("shift", _default_modifier_token("shift", supports_side_specific_modifiers))
-    if state & _SUPER_MASK:
-        grouped.setdefault("win", _default_modifier_token("win", supports_side_specific_modifiers))
+    ambiguous_groups: list[str] = []
+
+    for group, mask in _MODIFIER_STATE_FLAGS:
+        if not (state & mask):
+            continue
+        if group in grouped:
+            continue
+        if supports_side_specific_modifiers and is_windows:
+            ambiguous_groups.append(group)
+            continue
+        grouped[group] = _default_modifier_token(group, supports_side_specific_modifiers)
 
     if not supports_side_specific_modifiers:
         grouped = {group: group for group in grouped}
 
-    ordered = tuple(token for token in CANONICAL_MODIFIER_ORDER if token in grouped.values())
-    return pretty_hotkey_text(modifiers=ordered, key=key)
+    return grouped, tuple(ambiguous_groups)
+
+
+def _is_windows_platform() -> bool:
+    return sys.platform.startswith("win")
 
 
 def _normalize_hotkey_key(*, keysym: str, char: str) -> str | None:

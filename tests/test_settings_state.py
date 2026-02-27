@@ -12,6 +12,7 @@ def _action(
     *,
     plugin: str = "plugin",
     enabled: bool = True,
+    cardinality: str = "single",
 ) -> Action:
     return Action(
         id=action_id,
@@ -19,6 +20,7 @@ def _action(
         plugin=plugin,
         callback=lambda **_kwargs: None,
         enabled=enabled,
+        cardinality=cardinality,
     )
 
 
@@ -242,3 +244,172 @@ def test_validation_requires_plugin() -> None:
     issues = state.validate()
 
     assert any(issue.field == "plugin" and issue.level == "error" for issue in issues)
+
+
+def test_from_document_sets_action_option_cardinality_default_single() -> None:
+    document = default_document()
+    state = SettingsState.from_document(document=document, actions=[_action("known.action")])
+
+    assert state.action_options[0].cardinality == "single"
+
+
+def test_from_document_sets_action_option_cardinality_multi() -> None:
+    document = default_document()
+    state = SettingsState.from_document(
+        document=document,
+        actions=[_action("known.action", cardinality="multi")],
+    )
+
+    assert state.action_options[0].cardinality == "multi"
+
+
+def test_from_document_normalizes_invalid_action_cardinality_to_single() -> None:
+    document = default_document()
+    state = SettingsState.from_document(
+        document=document,
+        actions=[_action("known.action", cardinality="invalid-cardinality")],
+    )
+
+    assert state.action_options[0].cardinality == "single"
+
+
+def test_from_document_normalizes_mixed_case_action_cardinality_to_multi() -> None:
+    document = default_document()
+    state = SettingsState.from_document(
+        document=document,
+        actions=[_action("known.action", cardinality="MuLtI")],
+    )
+
+    assert state.action_options[0].cardinality == "multi"
+
+
+def test_validation_warns_for_duplicate_enabled_single_action_usage() -> None:
+    document = default_document()
+    state = SettingsState.from_document(document=document, actions=[_action("single.action", cardinality="single")])
+    state.rows = [
+        BindingRow(id="b1", hotkey="Ctrl+Alt+A", plugin="plugin", action_id="single.action", enabled=True),
+        BindingRow(id="b2", hotkey="Ctrl+Alt+B", plugin="plugin", action_id="single.action", enabled=True),
+    ]
+
+    issues = state.validate()
+
+    assert any(
+        issue.field == "action_id"
+        and issue.level == "warning"
+        and "single-use" in issue.message
+        for issue in issues
+    )
+
+
+def test_validation_ignores_disabled_rows_for_single_action_cardinality_warning() -> None:
+    document = default_document()
+    state = SettingsState.from_document(document=document, actions=[_action("single.action", cardinality="single")])
+    state.rows = [
+        BindingRow(id="b1", hotkey="Ctrl+Alt+A", plugin="plugin", action_id="single.action", enabled=False),
+        BindingRow(id="b2", hotkey="Ctrl+Alt+B", plugin="plugin", action_id="single.action", enabled=True),
+    ]
+
+    issues = state.validate()
+
+    assert not any(
+        issue.field == "action_id"
+        and issue.level == "warning"
+        and "single-use" in issue.message
+        for issue in issues
+    )
+
+
+def test_validation_warns_for_duplicate_enabled_multi_action_payload() -> None:
+    document = default_document()
+    state = SettingsState.from_document(document=document, actions=[_action("multi.action", cardinality="multi")])
+    state.rows = [
+        BindingRow(
+            id="b1",
+            hotkey="Ctrl+Alt+A",
+            plugin="plugin",
+            action_id="multi.action",
+            payload_text='{"color":"red"}',
+            enabled=True,
+        ),
+        BindingRow(
+            id="b2",
+            hotkey="Ctrl+Alt+B",
+            plugin="plugin",
+            action_id="multi.action",
+            payload_text='{"color":"red"}',
+            enabled=True,
+        ),
+    ]
+
+    issues = state.validate()
+
+    assert any(
+        issue.field == "payload"
+        and issue.level == "warning"
+        and "requires unique payloads" in issue.message
+        for issue in issues
+    )
+
+
+def test_validation_allows_multi_action_with_distinct_payloads() -> None:
+    document = default_document()
+    state = SettingsState.from_document(document=document, actions=[_action("multi.action", cardinality="multi")])
+    state.rows = [
+        BindingRow(
+            id="b1",
+            hotkey="Ctrl+Alt+A",
+            plugin="plugin",
+            action_id="multi.action",
+            payload_text='{"color":"red"}',
+            enabled=True,
+        ),
+        BindingRow(
+            id="b2",
+            hotkey="Ctrl+Alt+B",
+            plugin="plugin",
+            action_id="multi.action",
+            payload_text='{"color":"blue"}',
+            enabled=True,
+        ),
+    ]
+
+    issues = state.validate()
+
+    assert not any(
+        issue.field == "payload"
+        and issue.level == "warning"
+        and "requires unique payloads" in issue.message
+        for issue in issues
+    )
+
+
+def test_validation_ignores_disabled_rows_for_multi_payload_uniqueness_warning() -> None:
+    document = default_document()
+    state = SettingsState.from_document(document=document, actions=[_action("multi.action", cardinality="multi")])
+    state.rows = [
+        BindingRow(
+            id="b1",
+            hotkey="Ctrl+Alt+A",
+            plugin="plugin",
+            action_id="multi.action",
+            payload_text='{"color":"red"}',
+            enabled=False,
+        ),
+        BindingRow(
+            id="b2",
+            hotkey="Ctrl+Alt+B",
+            plugin="plugin",
+            action_id="multi.action",
+            payload_text='{"color":"red"}',
+            enabled=True,
+        ),
+    ]
+
+    issues = state.validate()
+
+    assert not any(
+        issue.field == "payload"
+        and issue.level == "warning"
+        and "requires unique payloads" in issue.message
+        for issue in issues
+    )

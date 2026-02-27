@@ -7,10 +7,10 @@
         "id": "hotkeys_test_on",
         "plugin": "EDMC-Hotkeys-Test",
         "modifiers": [
-          "ctrl",
-          "shift"
+          "ctrl_l",
+          "shift_l"
         ],
-        "key": "o",
+        "key": "f1",
         "action_id": "On",
         "enabled": true
       },
@@ -18,9 +18,10 @@
         "id": "hotkeys_test_off",
         "plugin": "EDMC-Hotkeys-Test",
         "modifiers": [
-          "ctrl"
+          "ctrl_l",
+          "shift_l"
         ],
-        "key": "o",
+        "key": "f2",
         "action_id": "Off",
         "enabled": true
       },
@@ -28,9 +29,10 @@
         "id": "hotkeys_test_toggle",
         "plugin": "EDMC-Hotkeys-Test",
         "modifiers": [
-          "ctrl"
+          "ctrl_l",
+          "shift_l"
         ],
-        "key": "m",
+        "key": "f3",
         "action_id": "Toggle",
         "enabled": true
       },
@@ -38,10 +40,10 @@
         "id": "hotkeys_test_color_red",
         "plugin": "EDMC-Hotkeys-Test",
         "modifiers": [
-          "ctrl",
-          "shift"
+          "ctrl_l",
+          "shift_l"
         ],
-        "key": "l",
+        "key": "f4",
         "action_id": "Color",
         "enabled": true,
         "payload": {
@@ -75,6 +77,28 @@
         "payload": {
           "color": "deepskyblue"
         }
+      },
+      {
+        "id": "Overlay ON",
+        "plugin": "EDMCModernOverlay",
+        "modifiers": [
+          "ctrl_l",
+          "shift_l"
+        ],
+        "key": "o",
+        "action_id": "Overlay On",
+        "enabled": true
+      },
+      {
+        "id": "Overlay Off",
+        "plugin": "EDMCModernOverlay",
+        "modifiers": [
+          "ctrl_l",
+          "shift_l"
+        ],
+        "key": "f",
+        "action_id": "Overlay Off",
+        "enabled": true
       }
     ]
   }

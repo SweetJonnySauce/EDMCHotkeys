@@ -48,8 +48,15 @@ Action(
     params_schema: dict | None = None,
     thread_policy: str = "main",  # "main" or "worker"
     enabled: bool = True,
+    cardinality: str = "single",  # "single" or "multi"
 )
 ```
+
+Cardinality behavior:
+- `single` (default): intended for one enabled binding per action ID.
+- `multi`: allows multiple enabled bindings for the same action ID, but each enabled binding must use a unique payload.
+- Invalid cardinality values are normalized to `single` with a warning.
+- Disabled rows are ignored for cardinality reservation/uniqueness checks.
 
 Binding shape:
 
@@ -137,6 +144,7 @@ def _register_hotkey_actions() -> bool:
             plugin=plugin_name,
             callback=_set_on,
             thread_policy="main",
+            cardinality="single",
         ),
         Action(
             id="my_test.off",
@@ -144,6 +152,7 @@ def _register_hotkey_actions() -> bool:
             plugin=plugin_name,
             callback=_set_off,
             thread_policy="main",
+            cardinality="single",
         ),
         Action(
             id="my_test.toggle",
@@ -151,6 +160,7 @@ def _register_hotkey_actions() -> bool:
             plugin=plugin_name,
             callback=_toggle,
             thread_policy="main",
+            cardinality="single",
         ),
         Action(
             id="my_test.color",
@@ -162,6 +172,7 @@ def _register_hotkey_actions() -> bool:
                 "properties": {"color": {"type": "string"}},
             },
             thread_policy="main",
+            cardinality="multi",
         ),
     ]
 
@@ -201,6 +212,10 @@ Color payload example:
   "enabled": true
 }
 ```
+
+Cardinality examples:
+- `my_test.on`/`my_test.off`/`my_test.toggle` use `cardinality="single"` and should typically have one enabled binding each.
+- `my_test.color` uses `cardinality="multi"` and can have multiple enabled bindings, but each must provide a unique payload (for example different `color` values).
 
 Wayland Tier 1-compatible generic example:
 

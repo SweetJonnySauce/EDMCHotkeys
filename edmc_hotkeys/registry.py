@@ -6,11 +6,32 @@ import inspect
 import logging
 from queue import Empty, Queue
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Callable, Optional, Protocol
 
 
 ActionCallback = Callable[..., Any]
+ACTION_CARDINALITY_SINGLE = "single"
+ACTION_CARDINALITY_MULTI = "multi"
+VALID_ACTION_CARDINALITIES = {
+    ACTION_CARDINALITY_SINGLE,
+    ACTION_CARDINALITY_MULTI,
+}
+
+
+def is_valid_action_cardinality(value: object) -> bool:
+    if not isinstance(value, str):
+        return False
+    return value.strip().casefold() in VALID_ACTION_CARDINALITIES
+
+
+def normalize_action_cardinality(value: object) -> str:
+    if not isinstance(value, str):
+        return ACTION_CARDINALITY_SINGLE
+    normalized = value.strip().casefold()
+    if normalized in VALID_ACTION_CARDINALITIES:
+        return normalized
+    return ACTION_CARDINALITY_SINGLE
 
 
 def _callback_supports_kwarg(callback: ActionCallback, name: str) -> bool:
@@ -131,6 +152,7 @@ class Action:
     params_schema: Optional[dict[str, Any]] = None
     thread_policy: str = "main"
     enabled: bool = True
+    cardinality: str = ACTION_CARDINALITY_SINGLE
 
 
 class ActionRegistry:
@@ -167,6 +189,16 @@ class ActionRegistry:
         if not callable(action.callback):
             self._logger.warning("Non-callable callback for action '%s'", action.id)
             return False
+        if not is_valid_action_cardinality(action.cardinality):
+            self._logger.warning(
+                "Invalid cardinality '%s' for action '%s'; defaulting to '%s'",
+                action.cardinality,
+                action.id,
+                ACTION_CARDINALITY_SINGLE,
+            )
+        normalized_cardinality = normalize_action_cardinality(action.cardinality)
+        if normalized_cardinality != action.cardinality:
+            action = replace(action, cardinality=normalized_cardinality)
 
         self._actions[action.id] = action
         self._logger.debug("Registered action '%s' from plugin '%s'", action.id, action.plugin)

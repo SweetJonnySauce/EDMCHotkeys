@@ -8,7 +8,12 @@ from typing import Any, Iterable
 
 from .bindings import BindingRecord, BindingsDocument
 from .hotkey import canonical_hotkey_text, parse_hotkey, pretty_hotkey_text
-from .registry import Action
+from .registry import (
+    ACTION_CARDINALITY_MULTI,
+    ACTION_CARDINALITY_SINGLE,
+    Action,
+    normalize_action_cardinality,
+)
 
 
 @dataclass(frozen=True)
@@ -17,6 +22,7 @@ class ActionOption:
     label: str
     plugin: str
     enabled: bool
+    cardinality: str = ACTION_CARDINALITY_SINGLE
 
 
 @dataclass(frozen=True)
@@ -60,6 +66,9 @@ class SettingsState:
                 label=action.label,
                 plugin=action.plugin,
                 enabled=action.enabled,
+                cardinality=normalize_action_cardinality(
+                    getattr(action, "cardinality", ACTION_CARDINALITY_SINGLE)
+                ),
             )
             for action in actions
         ]
@@ -90,6 +99,8 @@ class SettingsState:
         action_ids = {option.action_id for option in self.action_options}
         action_by_id = {option.action_id: option for option in self.action_options}
         seen_hotkeys: dict[str, str] = {}
+        seen_single_actions: dict[str, str] = {}
+        seen_multi_payloads: dict[str, dict[str, str]] = {}
 
         for index, row in enumerate(self.rows):
             row_key = row.id or f"row-{index + 1}"
@@ -214,6 +225,40 @@ class SettingsState:
                     )
                 else:
                     seen_hotkeys[hotkey_key] = row_key
+
+            if row.enabled and row.action_id in action_ids:
+                option = action_by_id[row.action_id]
+                option_cardinality = normalize_action_cardinality(option.cardinality)
+                if option_cardinality == ACTION_CARDINALITY_SINGLE:
+                    existing_row = seen_single_actions.get(row.action_id)
+                    if existing_row is None:
+                        seen_single_actions[row.action_id] = row_key
+                    else:
+                        issues.append(
+                            ValidationIssue(
+                                level="warning",
+                                row_id=row_key,
+                                field="action_id",
+                                message=f"Action '{row.action_id}' is single-use and already used by '{existing_row}'",
+                            )
+                        )
+                elif option_cardinality == ACTION_CARDINALITY_MULTI and payload_issue is None:
+                    payload_key = _cardinality_payload_key(row)
+                    payloads_by_row = seen_multi_payloads.setdefault(row.action_id, {})
+                    existing_row = payloads_by_row.get(payload_key)
+                    if existing_row is None:
+                        payloads_by_row[payload_key] = row_key
+                    else:
+                        issues.append(
+                            ValidationIssue(
+                                level="warning",
+                                row_id=row_key,
+                                field="payload",
+                                message=(
+                                    f"Action '{row.action_id}' requires unique payloads and matches '{existing_row}'"
+                                ),
+                            )
+                        )
         return issues
 
     def to_document(self) -> BindingsDocument:
@@ -265,6 +310,13 @@ def _payload_from_row(row: BindingRow) -> dict | None:
 
 def _canonical_payload_json(payload: dict[str, Any]) -> str:
     return json.dumps(payload, sort_keys=True, separators=(",", ":"))
+
+
+def _cardinality_payload_key(row: BindingRow) -> str:
+    payload = _payload_from_row(row)
+    if payload is None:
+        return "null"
+    return _canonical_payload_json(payload)
 
 
 def _binding_record_from_row(row: BindingRow) -> BindingRecord | None:
