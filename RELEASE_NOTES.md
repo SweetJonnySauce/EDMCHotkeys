@@ -1,6 +1,9 @@
 # EDMCHotkeys Release Notes
 
-## 2026-02-28 - Rename to EDMCHotkeys (Hard Change)
+## v0.1.0 - Initial Release
+- See README
+
+## v0.0.0 - Rename to EDMCHotkeys (Hard Change)
 
 Summary:
 - Canonical plugin/import name is now `EDMCHotkeys`.
@@ -14,7 +17,7 @@ Operator guidance:
 Migration action for plugin developers:
 - Replace `importlib.import_module("EDMC-Hotkeys.load")` with `import EDMCHotkeys as hotkeys`.
 
-## 2026-02-27 - GNOME Wayland Phase 5 Rollout Artifacts
+## v0.0.0 - GNOME Wayland Phase 5 Rollout Artifacts
 
 Summary:
 - Added Phase 5 rollout/stabilization documentation artifacts for alpha operations and GA policy tracking.
@@ -29,7 +32,7 @@ Policy update:
 - GA promotion remains deferred pending broader beta environment evidence.
 - Bridge sender path remains opt-in and current `auto` behavior is unchanged.
 
-## 2026-02-27 - GNOME Wayland Companion Phase 4 QA Completion
+## v0.0.0 - GNOME Wayland Companion Phase 4 QA Completion
 
 Summary:
 - Completed Phase 4 manual/integration QA for the GNOME Wayland companion bridge path.
@@ -40,7 +43,7 @@ Validation highlights:
 - Backend mode switching verified across EDMC restarts (`auto`, `wayland_gnome_bridge`, `wayland_portal`).
 - Stale runtime-dir/socket recovery verified with hardened permission restoration.
 
-## 2026-02-26 - Wayland Tier 1 Generic Modifier Support
+## v0.0.0 - Wayland Tier 1 Generic Modifier Support
 
 Summary:
 - Tier 1 backends now support non-side-specific modifiers (`Ctrl`, `Alt`, `Shift`, `Win`) for hotkey bindings.
