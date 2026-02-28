@@ -4,30 +4,29 @@ Global hotkeys plugin for EDMarketConnector with Windows, Linux X11, and Linux W
 
 ## Installation
 
-1. Extract the plugin into your EDMC plugins directory.
-2. Use `EDMCHotkeys` as the plugin folder name for new installs.
-3. Ensure only one hotkeys plugin folder is installed during cutover.
+### Windows
+- Download the current release
+- Extract the plugin into your EDMC plugins directory
 
-## Plugin Integration
+### Linux X11
+- Download the current release
+- Extract the plugin into your EDMC plugins directory
 
-Downstream plugins should use direct import:
+### Linux Wayland with GNOME
+- Download the current release
+- Extract the plugin into your EDMC plugins directory
+- Install the GNOME bridge (instructions TBD)
 
-```python
-import EDMCHotkeys as hotkeys
-```
+### Linux Wayland
+- NOTE: this has not been tested yet
+- Download the current release
+- In theory... Extract the plugin into your EDMC plugins directory
 
-Reference guide:
-- [`docs/register-action-with-edmchotkeys.md`](docs/register-action-with-edmchotkeys.md)
 
-## Breaking Rename (Pre-release)
+## Usage
+1) Open up EDMC Settings (File > Settings) and navigate to the EDMCHotkeys tab
+2) Assign a hotkey to a plugin action
 
-- Canonical plugin/import name is now `EDMCHotkeys`.
-- Legacy import path `EDMC-Hotkeys.load` is not supported.
-- Remove old integration snippets that use `importlib.import_module("EDMC-Hotkeys.load")`.
-- During local cutover, avoid keeping both `EDMC-Hotkeys` and `EDMCHotkeys` folders installed at the same time.
 
-## User Setup Docs
-
-- Linux setup: [`docs/linux-user-setup.md`](docs/linux-user-setup.md)
-- Manual QA: [`docs/manual-qa-checklist.md`](docs/manual-qa-checklist.md)
-- Feature flags: [`docs/feature-flags.md`](docs/feature-flags.md)
+## Blame
+Yes, this plugin was developed using AI. No, it is not low effort.
