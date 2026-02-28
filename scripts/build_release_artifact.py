@@ -34,6 +34,7 @@ GLOBAL_EXCLUDES = (
     "tests",
     "AGENTS.md",
     "Makefile",
+    "README.md",
     "RELEASE_NOTES.md",
     "requirements-dev.txt",
     "bindings.json",
