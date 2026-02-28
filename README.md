@@ -37,6 +37,8 @@ Global hotkeys plugin for EDMarketConnector with Windows, Linux X11, and Linux W
 ## Usage notes
 - Hotkeys need to be globally unique. You will need to make sure the hotkey you assign does not conflict with other app key combos. i.e. Elite Dangerous Options>Controls
 - If you don't see a plugin in the dropdown box, that's most likely because they haven't implemented EDMCHotkeys. There's nothing I can do to help with that.
+- Something else.. but i forgot
+- EDMCModernOverlay users need release [0.8.0 Alpha #1](https://github.com/SweetJonnySauce/EDMCModernOverlay/releases/tag/0.8.0-alpha-1) or greater.
 
 ## Support
 This plugin is currently under development. So not a lot of support will be given. However, you can occassionally find me on [EDCD Discord](https://edcd.github.io/) in the `#edmc-plugins` channel.
