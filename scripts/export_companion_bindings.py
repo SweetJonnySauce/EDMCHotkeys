@@ -25,7 +25,7 @@ def _default_output_path() -> str:
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Export EDMC-Hotkeys bindings for GNOME companion extension")
+    parser = argparse.ArgumentParser(description="Export EDMCHotkeys bindings for GNOME companion extension")
     parser.add_argument("--bindings", default="bindings.json", help="Path to EDMC bindings.json")
     parser.add_argument("--output", default=_default_output_path(), help="Output companion bindings config path")
     parser.add_argument("--profile", default="", help="Profile name override (defaults to active profile)")
@@ -40,7 +40,7 @@ def main(argv: list[str]) -> int:
         level=logging.DEBUG if args.debug else logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s",
     )
-    log = logging.getLogger("EDMC-Hotkeys.companion.export")
+    log = logging.getLogger("EDMCHotkeys.companion.export")
 
     bindings_path = os.path.abspath(args.bindings)
     output_path = os.path.abspath(args.output)

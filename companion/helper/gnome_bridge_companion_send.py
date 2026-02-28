@@ -72,7 +72,7 @@ def send_payload_with_retries(
     sleep_fn: Callable[[float], None] = time.sleep,
     logger: Optional[logging.Logger] = None,
 ) -> SendResult:
-    log = logger or logging.getLogger("EDMC-Hotkeys.companion.send")
+    log = logger or logging.getLogger("EDMCHotkeys.companion.send")
     attempts = 0
     start = time.monotonic()
     backoff_ms = max(1, initial_backoff_ms)
@@ -155,7 +155,7 @@ def main(argv: list[str]) -> int:
         level=logging.DEBUG if args.debug else logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s",
     )
-    log = logging.getLogger("EDMC-Hotkeys.companion.send")
+    log = logging.getLogger("EDMCHotkeys.companion.send")
 
     if args.retries < 0:
         log.error("--retries must be >= 0")

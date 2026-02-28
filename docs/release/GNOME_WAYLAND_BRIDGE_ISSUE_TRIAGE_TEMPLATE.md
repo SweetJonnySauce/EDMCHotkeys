@@ -1,7 +1,7 @@
 # GNOME Wayland Bridge Issue Triage Template
 
 Status: Phase 5 rollout triage template
-Owner: EDMC-Hotkeys
+Owner: EDMCHotkeys
 Last Updated: 2026-02-27
 
 ## Severity Model
@@ -41,3 +41,4 @@ Last Updated: 2026-02-27
 - `S0`/`S1` must be resolved before GA.
 - `S2` may be deferred only with documented workaround and support note.
 - `S3` may be deferred if no rollout safety/correctness impact exists.
+

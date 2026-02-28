@@ -19,6 +19,8 @@ def _build_panel(*, logger: logging.Logger, supports_side_specific_modifiers: bo
     panel._logger = logger
     panel._supports_side_specific_modifiers = supports_side_specific_modifiers
     panel._active_modifier_tokens = {}
+    panel._suppress_var_trace_handlers = False
+    panel._refreshing_action_options = False
     return panel
 
 
@@ -68,12 +70,13 @@ def _action_option(
     action_id: str,
     *,
     plugin: str,
+    label: str | None = None,
     enabled: bool = True,
     cardinality: str = "single",
 ) -> ActionOption:
     return ActionOption(
         action_id=action_id,
-        label=action_id,
+        label=label if label is not None else action_id,
         plugin=plugin,
         enabled=enabled,
         cardinality=cardinality,
@@ -83,7 +86,10 @@ def _action_option(
 def _row_for_dropdown(*, plugin: str = "", action: str = "", payload: str = "", enabled: bool = True) -> SimpleNamespace:
     return SimpleNamespace(
         plugin_var=_DummyStringVar(plugin),
-        action_var=_DummyStringVar(action),
+        action_id_var=_DummyStringVar(action),
+        action_display_var=_DummyStringVar(""),
+        action_display_to_id={},
+        action_label_by_id={},
         payload_var=_DummyStringVar(payload),
         enabled_var=_DummyStringVar("Yes" if enabled else "No"),
         action_combo=_DummyCombo(),
@@ -95,6 +101,7 @@ def _build_dropdown_panel(*, action_options: list[ActionOption], rows: list[Simp
     panel._state = SimpleNamespace(action_options=action_options)
     panel._row_widgets = rows
     panel._refreshing_action_options = False
+    panel._suppress_var_trace_handlers = False
     return panel
 
 
@@ -333,6 +340,17 @@ def test_action_dropdown_empty_when_plugin_unset() -> None:
     assert row.action_combo.values == ()
 
 
+def test_settings_columns_match_requested_order() -> None:
+    assert [label for label, _width in settings_ui._COLUMN_SPECS] == [
+        "Hotkey",
+        "Plugin",
+        "Action",
+        "Payload",
+        "Enabled",
+        "Removed",
+    ]
+
+
 def test_action_dropdown_filters_case_insensitive_plugin_match() -> None:
     row = _row_for_dropdown(plugin="ALPHA", action="", payload="")
     panel = _build_dropdown_panel(
@@ -346,6 +364,52 @@ def test_action_dropdown_filters_case_insensitive_plugin_match() -> None:
     panel._refresh_row_action_options(row)
 
     assert row.action_combo.values == ("alpha.one",)
+
+
+def test_action_dropdown_shows_action_label_and_hides_action_id() -> None:
+    row = _row_for_dropdown(plugin="alpha", action="alpha.one", payload="")
+    panel = _build_dropdown_panel(
+        action_options=[
+            _action_option("alpha.one", plugin="alpha", label="Turn Overlay On"),
+            _action_option("alpha.two", plugin="alpha", label="Turn Overlay Off"),
+        ],
+        rows=[row],
+    )
+
+    panel._refresh_row_action_options(row)
+
+    assert row.action_combo.values == ("Turn Overlay On", "Turn Overlay Off")
+    assert row.action_display_var.get() == "Turn Overlay On"
+    assert row.action_id_var.get() == "alpha.one"
+
+
+def test_action_dropdown_maps_selected_label_back_to_action_id() -> None:
+    row = _row_for_dropdown(plugin="alpha", action="", payload="")
+    panel = _build_dropdown_panel(
+        action_options=[_action_option("alpha.one", plugin="alpha", label="Turn Overlay On")],
+        rows=[row],
+    )
+    panel._refresh_row_action_options(row)
+
+    row.action_display_var.set("Turn Overlay On")
+    panel._on_action_value_changed(row)
+
+    assert row.action_id_var.get() == "alpha.one"
+
+
+def test_action_trace_handler_noops_when_suppressed() -> None:
+    row = _row_for_dropdown(plugin="alpha", action="", payload="")
+    panel = _build_dropdown_panel(
+        action_options=[_action_option("alpha.one", plugin="alpha", label="Turn Overlay On")],
+        rows=[row],
+    )
+    panel._refresh_row_action_options(row)
+
+    panel._suppress_var_trace_handlers = True
+    row.action_display_var.set("Turn Overlay On")
+    panel._on_action_value_changed(row)
+
+    assert row.action_id_var.get() == ""
 
 
 def test_action_dropdown_excludes_actions_assigned_in_other_rows() -> None:
@@ -457,7 +521,7 @@ def test_action_clears_immediately_when_becomes_ineligible() -> None:
     row.plugin_var.set("beta")
     panel._on_plugin_value_changed(row)
 
-    assert row.action_var.get() == ""
+    assert row.action_id_var.get() == ""
 
 
 def test_payload_clears_when_action_is_auto_cleared() -> None:
@@ -508,7 +572,7 @@ def test_action_dropdown_recomputes_on_action_change() -> None:
     panel._refresh_all_action_options()
     assert row_two.action_combo.values == ("alpha.one", "alpha.two")
 
-    row_one.action_var.set("alpha.one")
+    row_one.action_display_var.set("alpha.one")
     panel._on_action_value_changed(row_one)
 
     assert row_two.action_combo.values == ("alpha.two",)

@@ -1,9 +1,9 @@
-# Registering Actions With EDMC-Hotkeys
+# Registering Actions With EDMCHotkeys
 
-This guide shows how another EDMC plugin can register actions with `EDMC-Hotkeys` so they can be triggered by global hotkeys.
+This guide shows how another EDMC plugin can register actions with `EDMCHotkeys` so they can be triggered by global hotkeys.
 
 ## Prerequisites
-- `EDMC-Hotkeys` is installed and enabled.
+- `EDMCHotkeys` is installed and enabled.
 - Your plugin callback code is UI-safe:
   - use `thread_policy="main"` for Tk/UI changes.
   - use `thread_policy="worker"` only for non-UI/background work.
@@ -12,8 +12,7 @@ This guide shows how another EDMC plugin can register actions with `EDMC-Hotkeys
 Import the plugin API module:
 
 ```python
-import importlib
-hotkeys = importlib.import_module("EDMC-Hotkeys.load")
+import EDMCHotkeys as hotkeys
 ```
 
 Available functions:
@@ -82,7 +81,7 @@ def my_callback(*, payload=None, source="hotkey", hotkey=None):
 - `payload`: optional dict from the binding.
 - `source`: where invocation came from (for example `backend:linux-x11`).
 - `hotkey`: pretty hotkey string when invoked via a binding (for example `LCtrl+RShift+A`; optional and omitted if not available).
-- `EDMC-Hotkeys` only passes `hotkey` when your callback declares it or accepts `**kwargs`.
+- `EDMCHotkeys` only passes `hotkey` when your callback declares it or accepts `**kwargs`.
 
 ## Minimal Registration Example
 
@@ -91,7 +90,6 @@ Put this in your plugin (for example in `load.py`), then call `_register_hotkey_
 ```python
 from __future__ import annotations
 
-import importlib
 import logging
 
 from edmc_hotkeys.registry import Action
@@ -132,9 +130,9 @@ def _set_color(*, payload=None, source="hotkey", hotkey=None):
 def _register_hotkey_actions() -> bool:
     global _hotkeys_api
     try:
-        _hotkeys_api = importlib.import_module("EDMC-Hotkeys.load")
+        import EDMCHotkeys as _hotkeys_api
     except Exception:
-        logger.warning("EDMC-Hotkeys is not importable yet")
+        logger.warning("EDMCHotkeys is not importable yet")
         return False
 
     actions = [
@@ -186,7 +184,7 @@ def _register_hotkey_actions() -> bool:
 ```
 
 ## Bindings Example
-Add bindings in `EDMC-Hotkeys/bindings.json` (or via settings UI) that target your action IDs:
+Add bindings in `EDMCHotkeys/bindings.json` (or via settings UI) that target your action IDs:
 
 ```json
 {
@@ -251,10 +249,12 @@ Backend behavior notes:
   - action registration did not run or failed.
   - verify your plugin loaded and `_register_hotkey_actions()` returned `True`.
 - `Timed out waiting for main-thread dispatch`:
-  - callback expected main-thread dispatch but queue was not being pumped; ensure you are on the latest `EDMC-Hotkeys` version.
+  - callback expected main-thread dispatch but queue was not being pumped; ensure you are on the latest `EDMCHotkeys` version.
 - Action returns `False` on register:
   - duplicate action ID already exists; make IDs unique.
 - Backend/runtime troubleshooting:
   - see `docs/linux-user-setup.md` for session/backend checks.
   - see `docs/manual-qa-checklist.md` for release regression checks.
   - see `docs/feature-flags.md` for active runtime flags and defaults.
+
+

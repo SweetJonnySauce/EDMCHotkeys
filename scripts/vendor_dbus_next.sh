@@ -6,7 +6,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 usage() {
   cat <<'EOF'
-Vendor dbus-next into the EDMC-Hotkeys plugin directory.
+Vendor dbus-next into the EDMCHotkeys plugin directory.
 
 Usage:
   scripts/vendor_dbus_next.sh [--python /path/to/python] [--version X.Y.Z]

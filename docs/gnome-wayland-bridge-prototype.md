@@ -29,8 +29,8 @@ Optional runtime controls:
 - `EDMC_HOTKEYS_GNOME_BRIDGE_ALLOW_LEGACY=1` allows legacy payloads (compat only).
 
 ## Auto-Sync Behavior
-- On startup and settings save, EDMC-Hotkeys syncs active bridge bindings to GNOME custom keybindings.
-- When a binding hotkey changes in EDMC-Hotkeys, GNOME keybinding entries are updated automatically.
+- On startup and settings save, EDMCHotkeys syncs active bridge bindings to GNOME custom keybindings.
+- When a binding hotkey changes in EDMCHotkeys, GNOME keybinding entries are updated automatically.
 - Only bridge-compatible bindings are synced:
   - generic/key-only modifiers (`Ctrl`, `Alt`, `Shift`, `Win`, function keys, alnum/supported specials)
   - side-specific modifiers are skipped with warnings.
@@ -99,6 +99,7 @@ Default companion config path:
 - `~/.config/edmc-hotkeys/companion-bindings.json`
 
 Compatibility/support matrix:
-- [gnome-companion-compatibility-matrix.md](/home/jon/edmc_plugins/EDMC-Hotkeys/docs/gnome-companion-compatibility-matrix.md)
+- [gnome-companion-compatibility-matrix.md](/home/jon/edmc_plugins/EDMCHotkeys/docs/gnome-companion-compatibility-matrix.md)
 Phase 4 QA evidence:
-- [GNOME_WAYLAND_BRIDGE_PHASE4_QA_MATRIX.md](/home/jon/edmc_plugins/EDMC-Hotkeys/docs/qa/GNOME_WAYLAND_BRIDGE_PHASE4_QA_MATRIX.md)
+- [GNOME_WAYLAND_BRIDGE_PHASE4_QA_MATRIX.md](/home/jon/edmc_plugins/EDMCHotkeys/docs/qa/GNOME_WAYLAND_BRIDGE_PHASE4_QA_MATRIX.md)
+

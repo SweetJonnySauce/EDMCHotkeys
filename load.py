@@ -1,4 +1,4 @@
-"""EDMC plugin entrypoint for EDMC-Hotkeys."""
+"""EDMC plugin entrypoint for EDMCHotkeys."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ def _build_plugin_logger(plugin_name: str) -> logging.Logger:
         return logging.getLogger(plugin_name)
 
 
-plugin_name = "EDMC-Hotkeys"
+plugin_name = "EDMCHotkeys"
 logger = _build_plugin_logger(plugin_name)
 _plugin: Optional[HotkeyPlugin] = None
 _bindings_store: Optional[BindingsStore] = None
@@ -382,7 +382,7 @@ def _show_validation_error_dialog(issues: list[ValidationIssue]) -> None:
         from tkinter import messagebox
 
         parent = _settings_panel.frame if _settings_panel is not None else None
-        messagebox.showerror("EDMC-Hotkeys", message, parent=parent)
+        messagebox.showerror("EDMCHotkeys", message, parent=parent)
     except Exception as exc:
         logger.warning("Unable to show validation error dialog")
         logger.debug("Validation error dialog failure", exc_info=exc)
@@ -444,7 +444,7 @@ def _install_prefs_apply_guard() -> None:
                     logger.warning("Bindings settings contain validation errors; keeping Settings dialog open")
                     return None
             except Exception:
-                logger.exception("EDMC-Hotkeys settings apply guard failed; falling back to EDMC apply")
+                logger.exception("EDMCHotkeys settings apply guard failed; falling back to EDMC apply")
         return original_apply(dialog_self, *args, **kwargs)
 
     setattr(_guarded_apply, "_edmc_hotkeys_guard", True)

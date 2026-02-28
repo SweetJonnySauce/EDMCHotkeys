@@ -106,7 +106,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: dist-${{ matrix.variant }}
-          path: dist/EDMC-Hotkeys-${{ matrix.artifact_suffix }}-${{ needs.prepare.outputs.version }}.${{ matrix.artifact_ext }}
+          path: dist/EDMCHotkeys-${{ matrix.artifact_suffix }}-${{ needs.prepare.outputs.version }}.${{ matrix.artifact_ext }}
           if-no-files-found: error
 
   publish:

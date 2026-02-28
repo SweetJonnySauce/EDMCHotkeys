@@ -42,9 +42,10 @@ Companion artifact track (`extension -> helper -> plugin bridge`) compatibility 
 - Current Stage 5.2 status: deferred until an additional GNOME Wayland test environment is available.
 
 ## Rollout Artifacts
-- [GNOME_WAYLAND_BRIDGE_ALPHA_ROLLOUT_CHECKLIST.md](/home/jon/edmc_plugins/EDMC-Hotkeys/docs/release/GNOME_WAYLAND_BRIDGE_ALPHA_ROLLOUT_CHECKLIST.md)
-- [GNOME_WAYLAND_BRIDGE_ISSUE_TRIAGE_TEMPLATE.md](/home/jon/edmc_plugins/EDMC-Hotkeys/docs/release/GNOME_WAYLAND_BRIDGE_ISSUE_TRIAGE_TEMPLATE.md)
-- [GNOME_WAYLAND_BRIDGE_GA_DECISION_RECORD.md](/home/jon/edmc_plugins/EDMC-Hotkeys/docs/release/GNOME_WAYLAND_BRIDGE_GA_DECISION_RECORD.md)
+- [GNOME_WAYLAND_BRIDGE_ALPHA_ROLLOUT_CHECKLIST.md](/home/jon/edmc_plugins/EDMCHotkeys/docs/release/GNOME_WAYLAND_BRIDGE_ALPHA_ROLLOUT_CHECKLIST.md)
+- [GNOME_WAYLAND_BRIDGE_ISSUE_TRIAGE_TEMPLATE.md](/home/jon/edmc_plugins/EDMCHotkeys/docs/release/GNOME_WAYLAND_BRIDGE_ISSUE_TRIAGE_TEMPLATE.md)
+- [GNOME_WAYLAND_BRIDGE_GA_DECISION_RECORD.md](/home/jon/edmc_plugins/EDMCHotkeys/docs/release/GNOME_WAYLAND_BRIDGE_GA_DECISION_RECORD.md)
 
 ## Linked QA Evidence
-- [GNOME_WAYLAND_BRIDGE_PHASE4_QA_MATRIX.md](/home/jon/edmc_plugins/EDMC-Hotkeys/docs/qa/GNOME_WAYLAND_BRIDGE_PHASE4_QA_MATRIX.md)
+- [GNOME_WAYLAND_BRIDGE_PHASE4_QA_MATRIX.md](/home/jon/edmc_plugins/EDMCHotkeys/docs/qa/GNOME_WAYLAND_BRIDGE_PHASE4_QA_MATRIX.md)
+

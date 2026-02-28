@@ -1,7 +1,7 @@
 # GNOME Wayland Bridge Alpha Rollout Checklist
 
 Status: Active for Phase 5 Stage 5.1
-Owner: EDMC-Hotkeys
+Owner: EDMCHotkeys
 Last Updated: 2026-02-27
 
 ## Scope
@@ -46,3 +46,4 @@ Classify issues using `docs/release/GNOME_WAYLAND_BRIDGE_ISSUE_TRIAGE_TEMPLATE.m
   - `EDMC_HOTKEYS_BACKEND_MODE=auto EDMC_HOTKEYS_GNOME_BRIDGE=0 edmarketconnector`
 - Optional companion uninstall:
   - `./scripts/uninstall_gnome_bridge_companion.sh --remove-config`
+

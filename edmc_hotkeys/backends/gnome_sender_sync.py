@@ -126,7 +126,7 @@ class GnomeBridgeSenderSync:
         self._socket_path = socket_path
         self._sender_script_path = sender_script_path
         self._token_file_path = token_file_path
-        self._logger = logger or logging.getLogger("EDMC-Hotkeys")
+        self._logger = logger or logging.getLogger("EDMCHotkeys")
         self._run_command = run_command or _default_run_command
         self._gsettings_bin = gsettings_bin
 

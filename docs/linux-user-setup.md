@@ -20,7 +20,7 @@ echo "WAYLAND_DISPLAY=$WAYLAND_DISPLAY"
 3. Restart EDMC.
 
 Expected result:
-- `EDMC-Hotkeys` should select and start backend `linux-x11`.
+- `EDMCHotkeys` should select and start backend `linux-x11`.
 
 ## Wayland Setup
 1. Ensure `xdg-desktop-portal` is running in the user session.
@@ -39,7 +39,7 @@ python -c "import dbus_next; print('dbus-next OK')"
 ```
 
 Expected result with current implementation:
-- `EDMC-Hotkeys` selects backend `linux-wayland-portal`.
+- `EDMCHotkeys` selects backend `linux-wayland-portal`.
 - If portal/runtime prerequisites are available, backend starts and Wayland registrations can succeed.
 - If prerequisites are missing, backend remains non-fatal and logs explicit unavailability reasons (for example missing `WAYLAND_DISPLAY` or `dbus-next`).
 
@@ -59,9 +59,9 @@ Use this when GNOME Wayland does not expose `org.freedesktop.portal.GlobalShortc
    - `scripts/gnome_bridge_send.py --socket "$XDG_RUNTIME_DIR/edmc_hotkeys/bridge.sock" --token-file "$XDG_RUNTIME_DIR/edmc_hotkeys/sender.token" --binding-id <id>`
 
 Expected result:
-- `EDMC-Hotkeys` selects backend `linux-wayland-gnome-bridge`.
+- `EDMCHotkeys` selects backend `linux-wayland-gnome-bridge`.
 - Active bridge bindings are auto-synced into GNOME custom keybindings.
-- Changing bindings in EDMC-Hotkeys updates GNOME shortcuts automatically.
+- Changing bindings in EDMCHotkeys updates GNOME shortcuts automatically.
 - Runtime diagnostics expose explicit hardening failure classes (`auth_reject`, `replay_reject`, `malformed_reject`, `rate_limit_drop`, `queue_drop`).
 
 ### GNOME Companion Extension/Helper Setup (Phase 3 Optional Track)
@@ -78,13 +78,13 @@ Use this when validating the extension -> helper -> plugin bridge architecture.
    - `./scripts/uninstall_gnome_bridge_companion.sh`
 
 Companion compatibility matrix:
-- [gnome-companion-compatibility-matrix.md](/home/jon/edmc_plugins/EDMC-Hotkeys/docs/gnome-companion-compatibility-matrix.md)
+- [gnome-companion-compatibility-matrix.md](/home/jon/edmc_plugins/EDMCHotkeys/docs/gnome-companion-compatibility-matrix.md)
 Companion QA matrix:
-- [GNOME_WAYLAND_BRIDGE_PHASE4_QA_MATRIX.md](/home/jon/edmc_plugins/EDMC-Hotkeys/docs/qa/GNOME_WAYLAND_BRIDGE_PHASE4_QA_MATRIX.md)
+- [GNOME_WAYLAND_BRIDGE_PHASE4_QA_MATRIX.md](/home/jon/edmc_plugins/EDMCHotkeys/docs/qa/GNOME_WAYLAND_BRIDGE_PHASE4_QA_MATRIX.md)
 Phase 5 rollout artifacts:
-- [GNOME_WAYLAND_BRIDGE_ALPHA_ROLLOUT_CHECKLIST.md](/home/jon/edmc_plugins/EDMC-Hotkeys/docs/release/GNOME_WAYLAND_BRIDGE_ALPHA_ROLLOUT_CHECKLIST.md)
-- [GNOME_WAYLAND_BRIDGE_ISSUE_TRIAGE_TEMPLATE.md](/home/jon/edmc_plugins/EDMC-Hotkeys/docs/release/GNOME_WAYLAND_BRIDGE_ISSUE_TRIAGE_TEMPLATE.md)
-- [GNOME_WAYLAND_BRIDGE_GA_DECISION_RECORD.md](/home/jon/edmc_plugins/EDMC-Hotkeys/docs/release/GNOME_WAYLAND_BRIDGE_GA_DECISION_RECORD.md)
+- [GNOME_WAYLAND_BRIDGE_ALPHA_ROLLOUT_CHECKLIST.md](/home/jon/edmc_plugins/EDMCHotkeys/docs/release/GNOME_WAYLAND_BRIDGE_ALPHA_ROLLOUT_CHECKLIST.md)
+- [GNOME_WAYLAND_BRIDGE_ISSUE_TRIAGE_TEMPLATE.md](/home/jon/edmc_plugins/EDMCHotkeys/docs/release/GNOME_WAYLAND_BRIDGE_ISSUE_TRIAGE_TEMPLATE.md)
+- [GNOME_WAYLAND_BRIDGE_GA_DECISION_RECORD.md](/home/jon/edmc_plugins/EDMCHotkeys/docs/release/GNOME_WAYLAND_BRIDGE_GA_DECISION_RECORD.md)
 
 ### Tier 1 Modifier Guidance (Wayland)
 - Tier 1 (Wayland portal/bridge) supports:
@@ -102,7 +102,7 @@ If you are migrating an old side-specific binding for Wayland Tier 1:
 - `RCtrl+M` -> `Ctrl+M`
 
 ## Troubleshooting
-- Open EDMC debug log and search for `EDMC-Hotkeys`.
+- Open EDMC debug log and search for `EDMCHotkeys`.
 - Check for:
   - backend selected/started messages.
   - backend unavailable reason.
@@ -112,10 +112,10 @@ If you are migrating an old side-specific binding for Wayland Tier 1:
 Example:
 
 ```bash
-rg -n "EDMC-Hotkeys|backend|Auto-disabled binding|plugin_prefs|Failed for Plugin" ~/edmc-logs/EDMarketConnector-debug.log
+rg -n "EDMCHotkeys|backend|Auto-disabled binding|plugin_prefs|Failed for Plugin" ~/edmc-logs/EDMarketConnector-debug.log
 ```
 
 ## bindings.json Location
 - Bindings are stored in:
-  - `<EDMC plugin dir>/EDMC-Hotkeys/bindings.json`
+  - `<EDMC plugin dir>/EDMCHotkeys/bindings.json`
 - If missing, the plugin creates the file with defaults on startup.

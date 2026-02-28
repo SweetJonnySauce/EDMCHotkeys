@@ -26,14 +26,14 @@
 - Shared modules across plugins can collide; relative imports are recommended to avoid name conflicts.
 
 ## Single Plugin Topology (Normative)
-- This project is a single EDMC plugin: `EDMC-Hotkeys`.
-- The EDMC entry point is `EDMC-Hotkeys/load.py` (one `load.py` only).
+- This project is a single EDMC plugin: `EDMCHotkeys`.
+- The EDMC entry point is `EDMCHotkeys/load.py` (one `load.py` only).
 - Action registry and hotkey dispatch are internal modules within this plugin, not separate EDMC plugins.
 
 ## High-Level Architecture Options
 1. **Internal Action Registry (preferred baseline)**
-   - EDMC-Hotkeys owns an internal registry of actions (string IDs -> callable + metadata).
-   - EDMC-Hotkeys exposes registry helpers from its single plugin module.
+   - EDMCHotkeys owns an internal registry of actions (string IDs -> callable + metadata).
+   - EDMCHotkeys exposes registry helpers from its single plugin module.
    - Hotkey bindings map to action IDs.
 
 2. **Synthetic Event Injection**
@@ -49,7 +49,7 @@
    - Optional synthetic events for legacy compatibility or broad fan-out.
 
 ## Internal Action Registry - Detailed Design
-- Implement as internal modules under `EDMC-Hotkeys`.
+- Implement as internal modules under `EDMCHotkeys`.
 - Expose a stable API for action registration and discovery from the single plugin `load.py`.
 - Registry entry fields (conceptual):
   - `id`: stable action ID (example: `edmcmodernoverlay.toggle`).
@@ -61,7 +61,7 @@
     - Default policy: `main` (safe by default).
   - `enabled` (dynamic): if `False`, action is visible but unavailable.
 - Registration flow:
-  - `EDMC-Hotkeys/load.py` initializes the registry and exposes `register_action(...)` and `list_actions()`.
+  - `EDMCHotkeys/load.py` initializes the registry and exposes `register_action(...)` and `list_actions()`.
   - Actions register against this internal registry.
   - Hotkey dispatch reads the same registry for action lookup.
 - Dispatch flow:
@@ -75,7 +75,7 @@
   - Exceptions in action -> caught/logged to avoid crashing EDMC.
 
 ## Action Registry API (Normative)
-- Plugin ID / config prefix: `edmc_hotkeys` (single plugin name: `EDMC-Hotkeys`).
+- Plugin ID / config prefix: `edmc_hotkeys` (single plugin name: `EDMCHotkeys`).
 - Registration API: `register_action(action)` returns `True`/`False` and rejects duplicate IDs (first wins).
 - Discovery: `list_actions()` returns all actions; `get_action(action_id)` returns the action or `None`.
 - Dispatch: `invoke_action(action_id, payload=None, source="hotkey", hotkey=None)` performs lookup + dispatch with logging.
@@ -144,7 +144,7 @@
   - Store non-binding settings in EDMC config using the `edmc_hotkeys.*` namespace.
 
 ## Decisions / Clarifications
-- Store mappings in plugin-local `bindings.json` in the EDMC-Hotkeys plugin directory.
+- Store mappings in plugin-local `bindings.json` in the EDMCHotkeys plugin directory.
 - Store non-binding settings in EDMC config with the `edmc_hotkeys` namespace.
 - Profile-aware bindings. Start with a "Default" profile that works globally; profile switching is key-bindable.
 - UI requirement: EDMC settings dialog needs a flexible, table-like editor for bindings:

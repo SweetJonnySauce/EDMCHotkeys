@@ -107,7 +107,7 @@ class NullPortalClient:
 
     def __init__(self, *, reason: str, logger: Optional[logging.Logger] = None) -> None:
         self._reason = reason
-        self._logger = logger or logging.getLogger("EDMC-Hotkeys")
+        self._logger = logger or logging.getLogger("EDMCHotkeys")
 
     def availability(self) -> BackendAvailability:
         return BackendAvailability(name="linux-wayland-portal", available=False, reason=self._reason)
@@ -336,7 +336,7 @@ class DbusNextPortalService:
                 (
                     binding_id,
                     {
-                        "description": Variant("s", f"EDMC-Hotkeys {binding_id}"),
+                        "description": Variant("s", f"EDMCHotkeys {binding_id}"),
                         "preferred_trigger": Variant("s", hotkey),
                     },
                 )
@@ -483,7 +483,7 @@ class PortalGlobalShortcutsClient:
         platform_name: Optional[str] = None,
         service: Optional[PortalService] = None,
     ) -> None:
-        self._logger = logger or logging.getLogger("EDMC-Hotkeys")
+        self._logger = logger or logging.getLogger("EDMCHotkeys")
         self._platform_name = platform_name or sys.platform
         self._service = service or DbusNextPortalService(
             logger=self._logger,
@@ -516,7 +516,7 @@ class WaylandPortalBackend(HotkeyBackend):
         platform_name: Optional[str] = None,
         portal_client: Optional[PortalClient] = None,
     ) -> None:
-        self._logger = logger or logging.getLogger("EDMC-Hotkeys")
+        self._logger = logger or logging.getLogger("EDMCHotkeys")
         self._platform_name = platform_name or sys.platform
         self._portal_client = portal_client or PortalGlobalShortcutsClient(
             logger=self._logger,

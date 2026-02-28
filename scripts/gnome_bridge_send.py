@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Send a prototype GNOME bridge activation payload to EDMC-Hotkeys."""
+"""Send a prototype GNOME bridge activation payload to EDMCHotkeys."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from pathlib import Path
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Send bridge payload to EDMC-Hotkeys GNOME bridge backend")
+    parser = argparse.ArgumentParser(description="Send bridge payload to EDMCHotkeys GNOME bridge backend")
     parser.add_argument("--socket", required=True, help="Path to Unix datagram socket")
     parser.add_argument("--binding-id", required=True, help="Binding id to activate")
     parser.add_argument("--token", default="", help="Authentication token for hardened bridge mode")

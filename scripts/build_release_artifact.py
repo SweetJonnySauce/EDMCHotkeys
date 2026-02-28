@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build platform-specific EDMC-Hotkeys release artifacts."""
+"""Build platform-specific EDMCHotkeys release artifacts."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ import zipfile
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-TOP_LEVEL_DIR = "EDMC-Hotkeys"
+TOP_LEVEL_DIR = "EDMCHotkeys"
 VERSION_PATTERN = re.compile(r"^v\d+\.\d+\.\d+(?:-rc\.\d+)?$")
 
 GLOBAL_EXCLUDES = (

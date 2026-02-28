@@ -14,7 +14,7 @@ class BindingsStore:
 
     def __init__(self, file_path: Path, *, logger: logging.Logger | None = None) -> None:
         self._file_path = file_path
-        self._logger = logger or logging.getLogger("EDMC-Hotkeys")
+        self._logger = logger or logging.getLogger("EDMCHotkeys")
 
     @property
     def file_path(self) -> Path:

@@ -1,7 +1,7 @@
 # GitHub Release Workflow Runbook
 
 ## Scope
-Use this runbook to publish EDMC-Hotkeys release artifacts through `.github/workflows/release.yml`.
+Use this runbook to publish EDMCHotkeys release artifacts through `.github/workflows/release.yml`.
 
 ## Release Variants
 - `linux-x11`
@@ -9,7 +9,11 @@ Use this runbook to publish EDMC-Hotkeys release artifacts through `.github/work
 - `linux-wayland-gnome`
 - `windows`
 
-All artifacts unpack to a single top-level `EDMC-Hotkeys/` folder.
+All artifacts unpack to a single top-level `EDMCHotkeys/` folder.
+
+## Rename Cutover Guard
+- This plugin is on the `EDMCHotkeys` naming surface.
+- Do not run with both `EDMC-Hotkeys/` and `EDMCHotkeys/` plugin folders present in the same EDMC plugins directory.
 
 ## Trigger Modes
 1. Tag release:
@@ -27,10 +31,10 @@ make release-build-all VERSION=v0.1.0-rc.1
 ```
 
 Expected output:
-- `dist/EDMC-Hotkeys-linux-x11-v0.1.0-rc.1.tar.gz`
-- `dist/EDMC-Hotkeys-linux-wayland-v0.1.0-rc.1.tar.gz`
-- `dist/EDMC-Hotkeys-linux-wayland-gnome-v0.1.0-rc.1.tar.gz`
-- `dist/EDMC-Hotkeys-windows-v0.1.0-rc.1.zip`
+- `dist/EDMCHotkeys-linux-x11-v0.1.0-rc.1.tar.gz`
+- `dist/EDMCHotkeys-linux-wayland-v0.1.0-rc.1.tar.gz`
+- `dist/EDMCHotkeys-linux-wayland-gnome-v0.1.0-rc.1.tar.gz`
+- `dist/EDMCHotkeys-windows-v0.1.0-rc.1.zip`
 
 ## CI Release Behavior
 1. `prepare`:
@@ -51,3 +55,4 @@ If a release workflow change must be disabled quickly:
 2. Use local fallback packaging:
    - `make release-build-all VERSION=vX.Y.Z-rc.N`
 3. Publish artifacts manually if necessary.
+

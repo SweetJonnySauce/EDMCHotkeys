@@ -1,7 +1,7 @@
 # GNOME Wayland Bridge GA Decision Record
 
 Status: Draft decision record
-Owner: EDMC-Hotkeys
+Owner: EDMCHotkeys
 Last Updated: 2026-02-27
 
 ## Decision Date
@@ -32,3 +32,4 @@ Last Updated: 2026-02-27
 ## Rollback Position
 - Bridge path remains optional and non-fatal.
 - Users can return to non-bridge behavior by disabling bridge mode/env flags.
+

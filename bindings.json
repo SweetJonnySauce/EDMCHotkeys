@@ -99,6 +99,28 @@
         "key": "f",
         "action_id": "Overlay Off",
         "enabled": true
+      },
+      {
+        "id": "Previous Build",
+        "plugin": "BGS-Tally",
+        "modifiers": [
+          "ctrl_l",
+          "shift_l"
+        ],
+        "key": "l",
+        "action_id": "bgstally.progress.previous_build",
+        "enabled": true
+      },
+      {
+        "id": "Next Build",
+        "plugin": "BGS-Tally",
+        "modifiers": [
+          "ctrl_l",
+          "shift_l"
+        ],
+        "key": "r",
+        "action_id": "bgstally.progress.next_build",
+        "enabled": true
       }
     ]
   }

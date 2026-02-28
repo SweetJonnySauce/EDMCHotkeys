@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import sys
+import uuid
 from dataclasses import dataclass
 from typing import Optional
 
@@ -80,13 +81,12 @@ _SHIFTED_SYMBOL_TO_BASE_KEY = {
 
 
 _COLUMN_SPECS = (
-    ("Binding ID", 16),
     ("Hotkey", 18),
     ("Plugin", 16),
     ("Action", 28),
     ("Payload", 24),
     ("Enabled", 7),
-    ("", 8),
+    ("Removed", 8),
 )
 _ENABLED_CHOICES = ("Yes", "No")
 _CELL_PAD_X = (0, 12)
@@ -102,13 +102,20 @@ def _enabled_from_label(value: str) -> bool:
     return value.strip().lower() in {"yes", "true", "1"}
 
 
+def _new_binding_id() -> str:
+    return f"binding_{uuid.uuid4().hex[:8]}"
+
+
 @dataclass
 class _RowWidgets:
     row_id_var: object
     hotkey_var: object
     plugin_var: object
     plugin_combo: object
-    action_var: object
+    action_id_var: object
+    action_display_var: object
+    action_display_to_id: dict[str, str]
+    action_label_by_id: dict[str, str]
     action_combo: object
     payload_var: object
     payload_entry: object
@@ -140,6 +147,7 @@ class SettingsPanel:
         self._active_modifier_tokens: dict[str, dict[str, str]] = {}
         self._header_font: object | None = None
         self._refreshing_action_options = False
+        self._suppress_var_trace_handlers = False
 
         self._plugin_values = sorted({option.plugin for option in state.action_options if option.plugin})
 
@@ -151,33 +159,22 @@ class SettingsPanel:
         if tk is None or ttk is None:
             return
 
-        row_id_var = tk.StringVar(value=row.id)
+        row_id_var = tk.StringVar(value=row.id or _new_binding_id())
         hotkey_var = tk.StringVar(value=row.hotkey)
         plugin_var = tk.StringVar(value=row.plugin)
-        action_var = tk.StringVar(value=row.action_id)
+        action_id_var = tk.StringVar(value=row.action_id)
+        action_display_var = tk.StringVar(value="")
         payload_var = tk.StringVar(value=row.payload_text)
         enabled_var = tk.StringVar(value=_enabled_label(row.enabled))
 
         row_index = len(self._row_widgets) + 1
-        entry_id = self._widget_class("Entry", ttk.Entry)(
-            self._rows_inner,
-            textvariable=row_id_var,
-            width=_COLUMN_SPECS[0][1],
-        )
-        entry_id.grid(
-            row=row_index,
-            column=0,
-            padx=_CELL_PAD_X,
-            pady=_CELL_PAD_Y,
-            sticky="w",
-        )
         hotkey_entry = self._widget_class(
             "Entry",
             ttk.Entry,
-        )(self._rows_inner, textvariable=hotkey_var, width=_COLUMN_SPECS[1][1])
+        )(self._rows_inner, textvariable=hotkey_var, width=_COLUMN_SPECS[0][1])
         hotkey_entry.grid(
             row=row_index,
-            column=1,
+            column=0,
             padx=_CELL_PAD_X,
             pady=_CELL_PAD_Y,
             sticky="w",
@@ -190,25 +187,25 @@ class SettingsPanel:
             textvariable=plugin_var,
             values=self._plugin_values,
             state="readonly",
-            width=_COLUMN_SPECS[2][1],
+            width=_COLUMN_SPECS[1][1],
         )
-        plugin_combo.grid(row=row_index, column=2, padx=_CELL_PAD_X, pady=_CELL_PAD_Y, sticky="w")
+        plugin_combo.grid(row=row_index, column=1, padx=_CELL_PAD_X, pady=_CELL_PAD_Y, sticky="w")
         action_combo = self._widget_class("Combobox", ttk.Combobox)(
             self._rows_inner,
-            textvariable=action_var,
+            textvariable=action_display_var,
             values=(),
             state="readonly",
-            width=_COLUMN_SPECS[3][1],
+            width=_COLUMN_SPECS[2][1],
         )
-        action_combo.grid(row=row_index, column=3, padx=_CELL_PAD_X, pady=_CELL_PAD_Y, sticky="w")
+        action_combo.grid(row=row_index, column=2, padx=_CELL_PAD_X, pady=_CELL_PAD_Y, sticky="w")
         payload_entry = self._widget_class("Entry", ttk.Entry)(
             self._rows_inner,
             textvariable=payload_var,
-            width=_COLUMN_SPECS[4][1],
+            width=_COLUMN_SPECS[3][1],
         )
         payload_entry.grid(
             row=row_index,
-            column=4,
+            column=3,
             padx=_CELL_PAD_X,
             pady=_CELL_PAD_Y,
             sticky="w",
@@ -218,15 +215,15 @@ class SettingsPanel:
             textvariable=enabled_var,
             values=_ENABLED_CHOICES,
             state="readonly",
-            width=_COLUMN_SPECS[5][1],
+            width=_COLUMN_SPECS[4][1],
         )
-        enabled_combo.grid(row=row_index, column=5, padx=_CELL_PAD_X, pady=_CELL_PAD_Y, sticky="w")
+        enabled_combo.grid(row=row_index, column=4, padx=_CELL_PAD_X, pady=_CELL_PAD_Y, sticky="w")
         remove_button = self._widget_class("Button", ttk.Button)(
             self._rows_inner,
             text="Remove",
-            width=_COLUMN_SPECS[6][1],
+            width=_COLUMN_SPECS[5][1],
         )
-        remove_button.grid(row=row_index, column=6, pady=_CELL_PAD_Y, sticky="w")
+        remove_button.grid(row=row_index, column=5, pady=_CELL_PAD_Y, sticky="w")
         self._bind_mousewheel_recursive(self._rows_inner)
 
         row_widgets = _RowWidgets(
@@ -234,14 +231,16 @@ class SettingsPanel:
             hotkey_var=hotkey_var,
             plugin_var=plugin_var,
             plugin_combo=plugin_combo,
-            action_var=action_var,
+            action_id_var=action_id_var,
+            action_display_var=action_display_var,
+            action_display_to_id={},
+            action_label_by_id={},
             action_combo=action_combo,
             payload_var=payload_var,
             payload_entry=payload_entry,
             payload=row.payload,
             enabled_var=enabled_var,
             widgets=(
-                entry_id,
                 hotkey_entry,
                 plugin_combo,
                 action_combo,
@@ -250,8 +249,14 @@ class SettingsPanel:
                 remove_button,
             ),
         )
-        plugin_var.trace_add("write", lambda *_args, widgets=row_widgets: self._on_plugin_value_changed(widgets))
-        action_var.trace_add("write", lambda *_args, widgets=row_widgets: self._on_action_value_changed(widgets))
+        plugin_combo.bind(
+            "<<ComboboxSelected>>",
+            lambda _event, widgets=row_widgets: self._on_plugin_value_changed(widgets),
+        )
+        action_combo.bind(
+            "<<ComboboxSelected>>",
+            lambda _event, widgets=row_widgets: self._on_action_value_changed(widgets),
+        )
         remove_button.configure(command=lambda widgets=row_widgets: self._remove_row(widgets))
         self._row_widgets.append(row_widgets)
         self._refresh_row_positions()
@@ -266,7 +271,7 @@ class SettingsPanel:
                     id=row.row_id_var.get().strip(),
                     hotkey=row.hotkey_var.get().strip(),
                     plugin=row.plugin_var.get().strip(),
-                    action_id=row.action_var.get().strip(),
+                    action_id=row.action_id_var.get().strip(),
                     payload=row.payload,
                     payload_text=row.payload_var.get().strip(),
                     enabled=_enabled_from_label(str(row.enabled_var.get())),
@@ -371,37 +376,58 @@ class SettingsPanel:
         self._refresh_scroll_region()
         self._refresh_all_action_options()
 
-    def _on_plugin_value_changed(self, _row: _RowWidgets) -> None:
+    def _on_plugin_value_changed(self, row: _RowWidgets) -> None:
+        if self._suppress_var_trace_handlers:
+            return
         self._refresh_all_action_options()
 
-    def _on_action_value_changed(self, _row: _RowWidgets) -> None:
+    def _on_action_value_changed(self, row: _RowWidgets) -> None:
+        if self._suppress_var_trace_handlers:
+            return
+        selected_label = row.action_display_var.get().strip()
+        selected_action_id = row.action_display_to_id.get(selected_label, "")
+        if row.action_id_var.get().strip() != selected_action_id:
+            row.action_id_var.set(selected_action_id)
         self._refresh_all_action_options()
 
     def _refresh_all_action_options(self) -> None:
         if self._refreshing_action_options:
             return
         self._refreshing_action_options = True
+        self._suppress_var_trace_handlers = True
         try:
             for row in self._row_widgets:
                 self._refresh_row_action_options(row)
         finally:
+            self._suppress_var_trace_handlers = False
             self._refreshing_action_options = False
 
     def _refresh_row_action_options(self, row: _RowWidgets) -> None:
-        filtered_values = self._filtered_action_values(row)
+        filtered_options = self._filtered_action_options(row)
+        row.action_display_to_id = {display: action_id for display, action_id in filtered_options}
+        row.action_label_by_id = {action_id: display for display, action_id in filtered_options}
+        filtered_values = tuple(display for display, _action_id in filtered_options)
         self._set_combobox_values(row.action_combo, filtered_values)
-        current_action = row.action_var.get().strip()
-        if current_action and current_action not in filtered_values:
-            row.action_var.set("")
+        current_action_id = row.action_id_var.get().strip()
+        if current_action_id and current_action_id not in row.action_label_by_id:
+            row.action_id_var.set("")
+            if row.action_display_var.get().strip():
+                row.action_display_var.set("")
             row.payload_var.set("")
+            return
+        current_display = row.action_display_var.get().strip()
+        desired_display = row.action_label_by_id.get(current_action_id, "")
+        if current_display != desired_display:
+            row.action_display_var.set(desired_display)
 
-    def _filtered_action_values(self, row: _RowWidgets) -> tuple[str, ...]:
+    def _filtered_action_options(self, row: _RowWidgets) -> tuple[tuple[str, str], ...]:
         plugin = row.plugin_var.get().strip()
         if not plugin:
             return ()
         plugin_key = plugin.casefold()
         assigned_single_actions = self._assigned_single_actions_from_other_enabled_rows(row)
-        values: list[str] = []
+        label_counts: dict[str, int] = {}
+        values: list[tuple[str, str]] = []
         for option in self._state.action_options:
             option_plugin = option.plugin.strip()
             if not option_plugin or option_plugin.casefold() != plugin_key:
@@ -411,7 +437,11 @@ class SettingsPanel:
             )
             if option_cardinality == ACTION_CARDINALITY_SINGLE and option.action_id in assigned_single_actions:
                 continue
-            values.append(option.action_id)
+            base_label = option.label.strip() or option.action_id
+            label_count = label_counts.get(base_label, 0) + 1
+            label_counts[base_label] = label_count
+            label = base_label if label_count == 1 else f"{base_label} ({label_count})"
+            values.append((label, option.action_id))
         return tuple(values)
 
     def _assigned_single_actions_from_other_enabled_rows(self, target_row: _RowWidgets) -> set[str]:
@@ -422,7 +452,7 @@ class SettingsPanel:
                 continue
             if not _enabled_from_label(str(row.enabled_var.get())):
                 continue
-            action_id = row.action_var.get().strip()
+            action_id = row.action_id_var.get().strip()
             if not action_id:
                 continue
             option = option_by_id.get(action_id)

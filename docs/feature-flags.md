@@ -1,6 +1,6 @@
 # Feature Flags
 
-Canonical source of truth for runtime flags in `EDMC-Hotkeys`.
+Canonical source of truth for runtime flags in `EDMCHotkeys`.
 
 ## Runtime Flags
 | Flag | Default | Scope | Purpose | Risk | Removal Criteria |
@@ -14,3 +14,4 @@ Canonical source of truth for runtime flags in `EDMC-Hotkeys`.
 - New runtime flags must be added to this file when introduced.
 - Docs in other files should link here instead of duplicating default/semantics text.
 - Flags should include explicit removal criteria to avoid permanent rollout toggles.
+

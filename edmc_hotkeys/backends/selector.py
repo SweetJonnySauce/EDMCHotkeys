@@ -56,7 +56,7 @@ def select_backend(
     backend_mode_override: Optional[str] = None,
 ) -> HotkeyBackend:
     """Select backend according to platform/session strategy."""
-    log = logger or logging.getLogger("EDMC-Hotkeys")
+    log = logger or logging.getLogger("EDMCHotkeys")
     current_platform = platform_name or sys.platform
     env = os.environ if environ is None else environ
     mode = (backend_mode_override or backend_mode(env)).strip().lower()

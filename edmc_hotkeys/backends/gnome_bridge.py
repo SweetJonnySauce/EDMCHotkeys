@@ -107,7 +107,7 @@ class GnomeWaylandBridgeBackend:
         socket_factory: Optional[Callable[[], socket.socket]] = None,
         sender_sync: Optional[GnomeBridgeSenderSync] = None,
     ) -> None:
-        self._logger = logger or logging.getLogger("EDMC-Hotkeys")
+        self._logger = logger or logging.getLogger("EDMCHotkeys")
         self._platform_name = platform_name or sys.platform
         self._environ = dict(os.environ) if environ is None else dict(environ)
         self._socket_factory = socket_factory

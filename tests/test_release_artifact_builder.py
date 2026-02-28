@@ -39,7 +39,7 @@ def test_validate_version_patterns() -> None:
 def test_verify_tree_rejects_forbidden_path_for_wayland(tmp_path: Path) -> None:
     module = _load_builder_module()
     spec = module.VARIANT_SPECS["linux-wayland"]
-    root = tmp_path / "EDMC-Hotkeys"
+    root = tmp_path / "EDMCHotkeys"
     root.mkdir(parents=True, exist_ok=True)
     _seed_base_plugin_tree(root)
     (root / "dbus_next").mkdir()
@@ -52,7 +52,7 @@ def test_verify_tree_rejects_forbidden_path_for_wayland(tmp_path: Path) -> None:
 def test_verify_tree_requires_companion_paths_for_wayland_gnome(tmp_path: Path) -> None:
     module = _load_builder_module()
     spec = module.VARIANT_SPECS["linux-wayland-gnome"]
-    root = tmp_path / "EDMC-Hotkeys"
+    root = tmp_path / "EDMCHotkeys"
     root.mkdir(parents=True, exist_ok=True)
     _seed_base_plugin_tree(root)
     (root / "dbus_next").mkdir()
@@ -72,7 +72,7 @@ def test_verify_tree_requires_companion_paths_for_wayland_gnome(tmp_path: Path) 
 def test_verify_tree_rejects_global_excluded_paths(tmp_path: Path) -> None:
     module = _load_builder_module()
     spec = module.VARIANT_SPECS["linux-x11"]
-    root = tmp_path / "EDMC-Hotkeys"
+    root = tmp_path / "EDMCHotkeys"
     root.mkdir(parents=True, exist_ok=True)
     _seed_base_plugin_tree(root)
     (root / "Xlib").mkdir()
@@ -87,7 +87,7 @@ def test_verify_tree_rejects_global_excluded_paths(tmp_path: Path) -> None:
 def test_verify_tree_rejects_forbidden_path_for_windows(tmp_path: Path) -> None:
     module = _load_builder_module()
     spec = module.VARIANT_SPECS["windows"]
-    root = tmp_path / "EDMC-Hotkeys"
+    root = tmp_path / "EDMCHotkeys"
     root.mkdir(parents=True, exist_ok=True)
     _seed_base_plugin_tree(root)
     (root / "Xlib").mkdir()

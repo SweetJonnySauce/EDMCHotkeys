@@ -1,4 +1,18 @@
-# EDMC-Hotkeys Release Notes
+# EDMCHotkeys Release Notes
+
+## 2026-02-28 - Rename to EDMCHotkeys (Hard Change)
+
+Summary:
+- Canonical plugin/import name is now `EDMCHotkeys`.
+- Legacy import path `EDMC-Hotkeys.load` is unsupported.
+- Consumer documentation now uses direct import style (`import EDMCHotkeys as hotkeys`).
+
+Operator guidance:
+- Use a single plugin folder during cutover.
+- Do not keep both `EDMC-Hotkeys` and `EDMCHotkeys` folders installed at once.
+
+Migration action for plugin developers:
+- Replace `importlib.import_module("EDMC-Hotkeys.load")` with `import EDMCHotkeys as hotkeys`.
 
 ## 2026-02-27 - GNOME Wayland Phase 5 Rollout Artifacts
 
@@ -48,3 +62,4 @@ Migration guidance:
 Diagnostics:
 - Auto-disable logs should reference only side-specific bindings on Tier 1 backends.
 - Generic bindings should no longer be auto-disabled by side-specific capability checks.
+

@@ -1,12 +1,12 @@
 # Manual QA Checklist
 
 ## Scope
-- Release/milestone validation for `EDMC-Hotkeys` in real EDMC runtime.
+- Release/milestone validation for `EDMCHotkeys` in real EDMC runtime.
 - Covers settings UI, dispatch behavior, persistence, and backend smoke checks.
 
 ## Preflight
 1. Confirm plugin is installed as a single folder with `load.py`:
-   - `<EDMC plugins>/EDMC-Hotkeys/load.py`
+   - `<EDMC plugins>/EDMCHotkeys/load.py`
 2. Confirm `bindings.json` exists in plugin directory (or is created on first start).
 3. Start EDMC with debug logging enabled.
 
@@ -28,11 +28,11 @@ Fail criteria:
 Command:
 
 ```bash
-rg -n "EDMC-Hotkeys|Failed for Plugin|Traceback|TypeError|ImportError" ~/edmc-logs/EDMarketConnector-debug.log
+rg -n "EDMCHotkeys|Failed for Plugin|Traceback|TypeError|ImportError" ~/edmc-logs/EDMarketConnector-debug.log
 ```
 
 ## Settings UI
-1. Open `Settings` and select `EDMC-Hotkeys`.
+1. Open `Settings` and select `EDMCHotkeys`.
 2. Confirm settings pane renders and is scrollable.
 3. Add/edit/remove binding rows.
 4. Confirm validation messaging appears for:
@@ -140,3 +140,4 @@ Fail criteria:
   - global hotkey delivery while Elite Dangerous has focus.
   - compositor/session-specific backend startup behavior.
   - real shutdown lifecycle behavior across UI state transitions.
+

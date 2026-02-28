@@ -99,7 +99,7 @@ class WindowsHotkeyBackend(HotkeyBackend):
         user32: Optional[object] = None,
         kernel32: Optional[object] = None,
     ) -> None:
-        self._logger = logger or logging.getLogger("EDMC-Hotkeys")
+        self._logger = logger or logging.getLogger("EDMCHotkeys")
         self._platform_name = platform_name or sys.platform
         self._client = client
         self._user32 = user32

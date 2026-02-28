@@ -98,7 +98,7 @@ class QueuedMainThreadDispatchExecutor:
     ) -> None:
         self._main_thread_id = main_thread_id or threading.get_ident()
         self._timeout_seconds = timeout_seconds
-        self._logger = logger or logging.getLogger("EDMC-Hotkeys")
+        self._logger = logger or logging.getLogger("EDMCHotkeys")
         self._main_queue: Queue[_QueuedMainDispatchJob] = Queue()
 
     def run_main(self, callback: Callable[[], bool]) -> bool:
@@ -166,7 +166,7 @@ class ActionRegistry:
         logger: Optional[logging.Logger] = None,
         dispatch_executor: Optional[DispatchExecutor] = None,
     ) -> None:
-        self._logger = logger or logging.getLogger("EDMC-Hotkeys")
+        self._logger = logger or logging.getLogger("EDMCHotkeys")
         self._dispatch_executor = dispatch_executor or InlineDispatchExecutor()
         self._actions: dict[str, Action] = {}
 

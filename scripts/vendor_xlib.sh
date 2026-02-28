@@ -6,7 +6,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 usage() {
   cat <<'EOF'
-Vendor python-xlib into the EDMC-Hotkeys plugin directory.
+Vendor python-xlib into the EDMCHotkeys plugin directory.
 
 Usage:
   scripts/vendor_xlib.sh [--python /path/to/python] [--version X.Y.Z]

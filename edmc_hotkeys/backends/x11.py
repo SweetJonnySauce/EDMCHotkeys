@@ -40,7 +40,7 @@ class X11HotkeyBackend(HotkeyBackend):
         platform_name: Optional[str] = None,
         client: Optional[X11Client] = None,
     ) -> None:
-        self._logger = logger or logging.getLogger("EDMC-Hotkeys")
+        self._logger = logger or logging.getLogger("EDMCHotkeys")
         self._platform_name = platform_name or sys.platform
         self._client = client
 

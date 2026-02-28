@@ -113,7 +113,7 @@ class NullHotkeyBackend:
 
     def __init__(self, *, reason: str, logger: Optional[logging.Logger] = None) -> None:
         self._reason = reason
-        self._logger = logger or logging.getLogger("EDMC-Hotkeys")
+        self._logger = logger or logging.getLogger("EDMCHotkeys")
 
     @property
     def name(self) -> str:
