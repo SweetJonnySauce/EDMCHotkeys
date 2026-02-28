@@ -5,4 +5,5 @@ six.py
 dbus_next/
 dist/
 **/__pycache__/
+**/.pytest_cache/
 bindings.json
