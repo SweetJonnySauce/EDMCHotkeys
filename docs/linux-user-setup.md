@@ -13,23 +13,30 @@ echo "WAYLAND_DISPLAY=$WAYLAND_DISPLAY"
 - Wayland is typically `XDG_SESSION_TYPE=wayland` with `WAYLAND_DISPLAY` set.
 
 ## X11 Setup
-1. Vendor `Xlib/` into plugin root:
-   - `./scripts/vendor_xlib.sh`
-2. Optionally force EDMC runtime interpreter:
-   - `EDMC_PYTHON="$HOME/apps/EDMarketConnector/venv/bin/python3" ./scripts/vendor_xlib.sh`
-3. Restart EDMC.
+- Release builds already include `Xlib/` and `six.py` for X11 support.
+- No additional X11 dependency setup is required for normal release installation.
+- Restart EDMC after installing/updating the plugin.
 
 Expected result:
-- `EDMCHotkeys` should select and start backend `linux-x11`.
+- `EDMCHotkeys` should select and start backend `linux-x11`. Visible in the debug logs.
 
 ## Wayland Setup
-1. Ensure `xdg-desktop-portal` is running in the user session.
-2. Ensure your desktop-specific portal backend is installed/running (GNOME/KDE/etc.).
-3. Vendor `dbus-next` into plugin root:
-   - `./scripts/vendor_dbus_next.sh`
-4. Optionally force EDMC runtime interpreter:
-   - `EDMC_PYTHON="$HOME/apps/EDMarketConnector/venv/bin/python3" ./scripts/vendor_dbus_next.sh`
-5. Restart EDMC after portal service changes.
+Scope:
+- This section is for Wayland environments where the portal GlobalShortcuts path works (for example KDE and other non-GNOME desktops with portal support).
+- On GNOME Wayland, use **GNOME Wayland Bridge Setup** below instead of this portal-only path.
+
+1. Ensure `xdg-desktop-portal` is running in the user session:
+   ```bash
+   systemctl --user status xdg-desktop-portal
+   systemctl --user start xdg-desktop-portal
+   systemctl --user enable xdg-desktop-portal
+   systemctl --user is-active xdg-desktop-portal
+   ```
+   Expected result: `active`
+2. Ensure your desktop-specific portal backend is installed/running.
+3. Release builds already include `dbus_next` for Wayland support.
+4. No additional Wayland dependency setup is required for normal release installation.
+5. Restart EDMC after portal service changes or plugin updates.
 
 Useful checks:
 
