@@ -16,27 +16,21 @@ Global hotkeys plugin for EDMarketConnector with Windows, Linux X11, and Linux W
 - Download the current release
 - Extract the plugin into your EDMC plugins directory
 - Follow GNOME bridge setup in:
-  - `docs/linux-user-setup.md`
-  - `COMPANION_SETUP.md`
+  - [linux-user-setup.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/linux-user-setup.md)
+  - [COMPANION_SETUP.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/COMPANION_SETUP.md)
 
 ### Linux Wayland
 - NOTE: this has not been tested yet
 - Download the current release
 - Extract the plugin into your EDMC plugins directory
-- Follow setup and verification steps in `docs/linux-user-setup.md`
+- Follow setup and verification steps in [linux-user-setup.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/linux-user-setup.md)
 
 ## Plugin Developer API
 Start here if you are integrating another plugin with `EDMCHotkeys`:
-- Practical integration guide: `docs/register-action-with-edmchotkeys.md`
-- Canonical API reference: `docs/plugin-developer-api-reference.md`
-- Troubleshooting: `docs/plugin-developer-api-troubleshooting.md`
-- Documentation plan/status: `docs/plans/PLUGIN_DEVELOPER_API_DOCUMENTATION_PLAN.md`
-
-Documentation validation commands:
-- `make docs-check`
-- `python3 scripts/check_docs_links.py`
-- `python3 scripts/check_plugin_api_docs.py`
-- `python3 scripts/check_doc_snippets.py`
+- Practical integration guide: [register-action-with-edmchotkeys.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/register-action-with-edmchotkeys.md)
+- Canonical API reference: [plugin-developer-api-reference.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/plugin-developer-api-reference.md)
+- Troubleshooting: [plugin-developer-api-troubleshooting.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/plugin-developer-api-troubleshooting.md)
+- Documentation plan/status: [PLUGIN_DEVELOPER_API_DOCUMENTATION_PLAN.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/plans/PLUGIN_DEVELOPER_API_DOCUMENTATION_PLAN.md)
 
 ## Usage
 1) Open up EDMC Settings (File > Settings) and navigate to the EDMCHotkeys tab
@@ -57,7 +51,7 @@ Documentation validation commands:
 - [EDMCModernOverlay](https://github.com/SweetJonnySauce/EDMCModernOverlay) users need release [0.8.0 Alpha #1](https://github.com/SweetJonnySauce/EDMCModernOverlay/releases/tag/0.8.0-alpha-1) or greater.
 
 ## Support
-This plugin is currently under development. So not a lot of support will be given. However, you can occassionally find me on [EDCD Discord](https://edcd.github.io/) in the `#edmc-plugins` channel.
+This plugin is currently under development. So not a lot of support will be given beyond what is needed to get this plugin released into the wild. You can occassionally find me on [EDCD Discord](https://edcd.github.io/) in the `#edmc-plugins` channel.
 
 ## Blame
 Yes, this plugin was developed using AI. No, it is not low effort.
