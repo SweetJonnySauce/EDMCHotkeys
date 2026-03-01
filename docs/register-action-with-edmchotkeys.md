@@ -1,119 +1,39 @@
 # Registering Actions With EDMCHotkeys
 
-This guide shows how another EDMC plugin can register actions with `EDMCHotkeys` so they can be triggered by global hotkeys.
+Practical integration guide for plugin developers.
+
+Canonical contract references:
+- API signatures and semantics: `docs/plugin-developer-api-reference.md`
+- Failure diagnosis: `docs/plugin-developer-api-troubleshooting.md`
 
 ## Prerequisites
 - `EDMCHotkeys` is installed and enabled.
-- Your plugin callback code is UI-safe:
-  - use `thread_policy="main"` for Tk/UI changes.
-  - use `thread_policy="worker"` only for non-UI/background work.
+- Your callbacks are thread-safe:
+  - use `thread_policy="main"` for Tk/UI work
+  - use `thread_policy="worker"` for non-UI/background work
 
-## Public Module API
-Import the plugin API module:
+## Quickstart
 
+### 1. Import the API
 ```python
 import EDMCHotkeys as hotkeys
 ```
 
-Available functions:
-
-```python
-register_action(action: Action) -> bool
-list_actions() -> list[Action]
-list_bindings(plugin_name: str) -> list[Binding]
-get_action(action_id: str) -> Action | None
-invoke_action(
-    action_id: str,
-    payload: dict | None = None,
-    source: str = "hotkey",
-    hotkey: str | None = None,
-) -> bool
-invoke_bound_action(binding: Binding, source: str = "hotkey") -> bool
-```
-
-`list_bindings(plugin_name)` behavior:
-- `plugin_name` is required (empty string returns `[]`).
-- matching is case-insensitive against persisted binding `plugin`.
-- returns only bindings owned by that plugin.
-
-Action shape:
-
-```python
-Action(
-    id: str,
-    label: str,
-    plugin: str,
-    callback: Callable[..., Any],
-    params_schema: dict | None = None,
-    thread_policy: str = "main",  # "main" or "worker"
-    enabled: bool = True,
-    cardinality: str = "single",  # "single" or "multi"
-)
-```
-
-Cardinality behavior:
-- `single` (default): intended for one enabled binding per action ID.
-- `multi`: allows multiple enabled bindings for the same action ID, but each enabled binding must use a unique payload.
-- Invalid cardinality values are normalized to `single` with a warning.
-- Disabled rows are ignored for cardinality reservation/uniqueness checks.
-
-Binding shape:
-
-```python
-Binding(
-    id: str,
-    plugin: str,
-    hotkey: str,
-    action_id: str,
-    payload: dict | None = None,
-    enabled: bool = True,
-)
-```
-
-## Action Callback Contract
-Your callback should accept keyword args:
-
-```python
-def my_callback(*, payload=None, source="hotkey", hotkey=None):
-    ...
-```
-
-- `payload`: optional dict from the binding.
-- `source`: where invocation came from (for example `backend:linux-x11`).
-- `hotkey`: pretty hotkey string when invoked via a binding (for example `LCtrl+RShift+A`; optional and omitted if not available).
-- `EDMCHotkeys` only passes `hotkey` when your callback declares it or accepts `**kwargs`.
-
-## Minimal Registration Example
-
-Put this in your plugin (for example in `load.py`), then call `_register_hotkey_actions()` from `plugin_start3`.
-
+### 2. Register actions during plugin startup
 ```python
 from __future__ import annotations
 
 import logging
-
-from edmc_hotkeys.registry import Action
+import EDMCHotkeys as hotkeys
 
 plugin_name = "My-Test-Plugin"
 logger = logging.getLogger(plugin_name)
-_hotkeys_api = None
 
 
 def plugin_start3(plugin_dir: str) -> str:
     del plugin_dir
     _register_hotkey_actions()
     return plugin_name
-
-
-def _set_on(*, payload=None, source="hotkey", hotkey=None):
-    del payload
-    logger.info("ON action from %s (hotkey=%s)", source, hotkey)
-    # Update your UI/state here (main-thread safe)
-
-
-def _set_off(*, payload=None, source="hotkey", hotkey=None):
-    del payload
-    logger.info("OFF action from %s (hotkey=%s)", source, hotkey)
 
 
 def _toggle(*, payload=None, source="hotkey", hotkey=None):
@@ -124,35 +44,11 @@ def _toggle(*, payload=None, source="hotkey", hotkey=None):
 def _set_color(*, payload=None, source="hotkey", hotkey=None):
     color = (payload or {}).get("color", "gray")
     logger.info("COLOR action from %s (hotkey=%s) -> %s", source, hotkey, color)
-    # Apply color to your UI block here
 
 
 def _register_hotkey_actions() -> bool:
-    global _hotkeys_api
-    try:
-        import EDMCHotkeys as _hotkeys_api
-    except Exception:
-        logger.warning("EDMCHotkeys is not importable yet")
-        return False
-
     actions = [
-        Action(
-            id="my_test.on",
-            label="Turn On",
-            plugin=plugin_name,
-            callback=_set_on,
-            thread_policy="main",
-            cardinality="single",
-        ),
-        Action(
-            id="my_test.off",
-            label="Turn Off",
-            plugin=plugin_name,
-            callback=_set_off,
-            thread_policy="main",
-            cardinality="single",
-        ),
-        Action(
+        hotkeys.Action(
             id="my_test.toggle",
             label="Toggle",
             plugin=plugin_name,
@@ -160,15 +56,11 @@ def _register_hotkey_actions() -> bool:
             thread_policy="main",
             cardinality="single",
         ),
-        Action(
+        hotkeys.Action(
             id="my_test.color",
             label="Set Color",
             plugin=plugin_name,
             callback=_set_color,
-            params_schema={
-                "type": "object",
-                "properties": {"color": {"type": "string"}},
-            },
             thread_policy="main",
             cardinality="multi",
         ),
@@ -176,47 +68,17 @@ def _register_hotkey_actions() -> bool:
 
     all_ok = True
     for action in actions:
-        ok = _hotkeys_api.register_action(action)
+        ok = hotkeys.register_action(action)
         all_ok = all_ok and ok
         if not ok:
             logger.warning("Failed to register action: %s", action.id)
     return all_ok
 ```
 
-## Bindings Example
-Add bindings in `EDMCHotkeys/bindings.json` (or via settings UI) that target your action IDs:
+### 3. Configure bindings
+Create bindings in settings UI or `EDMCHotkeys/bindings.json`.
 
-```json
-{
-  "id": "test-on",
-  "plugin": "My-Test-Plugin",
-  "modifiers": ["ctrl_l", "shift_r"],
-  "key": "1",
-  "action_id": "my_test.on",
-  "enabled": true
-}
-```
-
-Color payload example:
-
-```json
-{
-  "id": "test-color-red",
-  "plugin": "My-Test-Plugin",
-  "modifiers": ["ctrl_l", "shift_r"],
-  "key": "4",
-  "action_id": "my_test.color",
-  "payload": {"color": "red"},
-  "enabled": true
-}
-```
-
-Cardinality examples:
-- `my_test.on`/`my_test.off`/`my_test.toggle` use `cardinality="single"` and should typically have one enabled binding each.
-- `my_test.color` uses `cardinality="multi"` and can have multiple enabled bindings, but each must provide a unique payload (for example different `color` values).
-
-Wayland Tier 1-compatible generic example:
-
+Single-use action example:
 ```json
 {
   "id": "test-toggle-generic",
@@ -228,33 +90,45 @@ Wayland Tier 1-compatible generic example:
 }
 ```
 
-Hotkey token notes:
-- `modifiers` may use canonical generic tokens:
-  - `ctrl`, `alt`, `shift`, `win`
-- `modifiers` may use canonical side-specific tokens:
-  - `ctrl_l`, `ctrl_r`, `alt_l`, `alt_r`, `shift_l`, `shift_r`, `win_l`, `win_r`
-- Mixed same-family generic + side-specific combinations are invalid:
-  - `ctrl` + `ctrl_l` (invalid)
-  - `shift` + `shift_r` (invalid)
+Multi-use action with payload:
+```json
+{
+  "id": "test-color-red",
+  "plugin": "My-Test-Plugin",
+  "modifiers": ["ctrl", "shift"],
+  "key": "4",
+  "action_id": "my_test.color",
+  "payload": {"color": "red"},
+  "enabled": true
+}
+```
 
-Backend behavior notes:
-- On Linux X11, side-specific bindings are detected using keymap polling plus edge detection (press transition), so modifier press order is supported.
-- On Linux X11, generic/non-side-specific bindings continue to use passive grabs.
-- Side-specific bindings fire once per key press chord; release and press again to trigger again.
-- On Wayland Tier 1 backends (portal/bridge), generic and key-only bindings are supported.
-- On Wayland Tier 1 backends (portal/bridge), side-specific bindings are auto-disabled with diagnostics.
+## Callback Contract Notes
+Recommended callback shape:
+```python
+def my_callback(*, payload=None, source="hotkey", hotkey=None):
+    ...
+```
 
-## Troubleshooting
-- `Action id '...' was not found`:
-  - action registration did not run or failed.
-  - verify your plugin loaded and `_register_hotkey_actions()` returned `True`.
-- `Timed out waiting for main-thread dispatch`:
-  - callback expected main-thread dispatch but queue was not being pumped; ensure you are on the latest `EDMCHotkeys` version.
-- Action returns `False` on register:
-  - duplicate action ID already exists; make IDs unique.
-- Backend/runtime troubleshooting:
-  - see `docs/linux-user-setup.md` for session/backend checks.
-  - see `docs/manual-qa-checklist.md` for release regression checks.
-  - see `docs/feature-flags.md` for active runtime flags and defaults.
+Behavior:
+- `payload` and `source` are always provided.
+- `hotkey` is provided when available and callback supports it.
 
+## Hotkey and Backend Notes
+- Generic modifiers: `ctrl`, `alt`, `shift`, `win`
+- Side-specific modifiers: `ctrl_l`, `ctrl_r`, `alt_l`, `alt_r`, `shift_l`, `shift_r`, `win_l`, `win_r`
+- Mixed same-family generic + side-specific tokens are invalid.
 
+Backend caveat:
+- Wayland portal and GNOME bridge do not support side-specific modifiers; use generic modifiers there.
+
+## Integration Verification Checklist
+1. Confirm `register_action(...)` returned `True` for all expected actions.
+2. Confirm actions are visible in EDMCHotkeys settings dropdowns.
+3. Trigger a bound hotkey and verify your callback log line appears.
+4. Validate payload-driven bindings produce expected behavior.
+
+## Related Docs
+- API reference: `docs/plugin-developer-api-reference.md`
+- Troubleshooting: `docs/plugin-developer-api-troubleshooting.md`
+- Linux backend setup: `docs/linux-user-setup.md`

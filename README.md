@@ -15,17 +15,33 @@ Global hotkeys plugin for EDMarketConnector with Windows, Linux X11, and Linux W
 ### Linux Wayland with GNOME
 - Download the current release
 - Extract the plugin into your EDMC plugins directory
-- Install the GNOME bridge (instructions TBD)
+- Follow GNOME bridge setup in:
+  - `docs/linux-user-setup.md`
+  - `COMPANION_SETUP.md`
 
 ### Linux Wayland
 - NOTE: this has not been tested yet
 - Download the current release
-- In theory... Extract the plugin into your EDMC plugins directory
+- Extract the plugin into your EDMC plugins directory
+- Follow setup and verification steps in `docs/linux-user-setup.md`
+
+## Plugin Developer API
+Start here if you are integrating another plugin with `EDMCHotkeys`:
+- Practical integration guide: `docs/register-action-with-edmchotkeys.md`
+- Canonical API reference: `docs/plugin-developer-api-reference.md`
+- Troubleshooting: `docs/plugin-developer-api-troubleshooting.md`
+- Documentation plan/status: `docs/plans/PLUGIN_DEVELOPER_API_DOCUMENTATION_PLAN.md`
+
+Documentation validation commands:
+- `make docs-check`
+- `python3 scripts/check_docs_links.py`
+- `python3 scripts/check_plugin_api_docs.py`
+- `python3 scripts/check_doc_snippets.py`
 
 ## Usage
 1) Open up EDMC Settings (File > Settings) and navigate to the EDMCHotkeys tab
 2) Assign a hotkey to a plugin action
-    - **Hotkey:** Keypress the hotkey you want to assign (don't actually type in "LCtrl", etc.
+    - **Hotkey:** Keypress the hotkey you want to assign (don't actually type in "LCtrl", etc.)
     - **Plugin:** Select available plugins from the dropdown. Plugins have to register with EDMCHotkeys to show up on this list.
     - **Action:** Select available actions for the chosen plugins from the dropdown. Plugins have to register actions with EDMCHotkeys to show up on this list.
     - **Payload**: Refer to the registered plugin documenation for what to put here (most likely, this will be blank).
