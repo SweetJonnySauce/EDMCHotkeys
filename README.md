@@ -27,10 +27,10 @@ Global hotkeys plugin for EDMarketConnector with Windows, Linux X11, and Linux W
 
 ## Plugin Developer API
 Start here if you are integrating another plugin with `EDMCHotkeys`:
+- Quick start: [plugin-developer-quickstart.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/plugin-developer-quickstart.md)
 - Practical integration guide: [register-action-with-edmchotkeys.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/register-action-with-edmchotkeys.md)
 - Canonical API reference: [plugin-developer-api-reference.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/plugin-developer-api-reference.md)
 - Troubleshooting: [plugin-developer-api-troubleshooting.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/plugin-developer-api-troubleshooting.md)
-- Documentation plan/status: [PLUGIN_DEVELOPER_API_DOCUMENTATION_PLAN.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/plans/PLUGIN_DEVELOPER_API_DOCUMENTATION_PLAN.md)
 
 ## Usage
 1) Open up EDMC Settings (File > Settings) and navigate to the EDMCHotkeys tab

@@ -16,6 +16,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_FILES = (
     "README.md",
     "docs/register-action-with-edmchotkeys.md",
+    "docs/plugin-developer-quickstart.md",
     "docs/plugin-developer-api-reference.md",
     "docs/plugin-developer-api-troubleshooting.md",
     "docs/plugin-developer-api-phase1-requirements.md",
