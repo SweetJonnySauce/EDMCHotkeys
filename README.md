@@ -25,13 +25,6 @@ Global hotkeys plugin for EDMarketConnector with Windows, Linux X11, and Linux W
 - Extract the plugin into your EDMC plugins directory
 - Follow setup and verification steps in [linux-user-setup.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/linux-user-setup.md)
 
-## Plugin Developer API
-Start here if you are integrating another plugin with `EDMCHotkeys`:
-- Quick start: [plugin-developer-quickstart.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/plugin-developer-quickstart.md)
-- Practical integration guide: [register-action-with-edmchotkeys.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/register-action-with-edmchotkeys.md)
-- Canonical API reference: [plugin-developer-api-reference.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/plugin-developer-api-reference.md)
-- Troubleshooting: [plugin-developer-api-troubleshooting.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/plugin-developer-api-troubleshooting.md)
-
 ## Usage
 1) Open up EDMC Settings (File > Settings) and navigate to the EDMCHotkeys tab
 2) Assign a hotkey to a plugin action
@@ -49,6 +42,13 @@ Start here if you are integrating another plugin with `EDMCHotkeys`:
 - If you don't see a plugin in the dropdown box, that's most likely because they haven't implemented EDMCHotkeys. There's nothing I can do to help with that.
 - The Wayland version does not support side specific modifiers (i.e. LShift / RShift)
 - [EDMCModernOverlay](https://github.com/SweetJonnySauce/EDMCModernOverlay) users need release [0.8.0 Alpha #1](https://github.com/SweetJonnySauce/EDMCModernOverlay/releases/tag/0.8.0-alpha-1) or greater.
+
+## Plugin Developer API
+Start here if you are integrating another plugin with `EDMCHotkeys`:
+- Quick start: [plugin-developer-quickstart.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/plugin-developer-quickstart.md)
+- Practical integration guide: [register-action-with-edmchotkeys.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/register-action-with-edmchotkeys.md)
+- Canonical API reference: [plugin-developer-api-reference.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/plugin-developer-api-reference.md)
+- Troubleshooting: [plugin-developer-api-troubleshooting.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/plugin-developer-api-troubleshooting.md)
 
 ## Support
 This plugin is currently under development. So not a lot of support will be given beyond what is needed to get this plugin released into the wild. You can occassionally find me on [EDCD Discord](https://edcd.github.io/) in the `#edmc-plugins` channel.
