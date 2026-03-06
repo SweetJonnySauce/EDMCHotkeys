@@ -4,6 +4,7 @@ Status: Phase 5 alpha rollout input updated (2026-02-27)
 
 ## Scope
 Companion artifact track (`extension -> helper -> plugin bridge`) compatibility targets and current verification state.
+This matrix tracks GNOME Wayland bridge coverage only; it does not represent non-GNOME Wayland portal-path validation.
 
 ## Legend
 - `Validated`: local smoke completed for install + activate + rollback (including interactive runtime checks).
@@ -42,10 +43,9 @@ Companion artifact track (`extension -> helper -> plugin bridge`) compatibility 
 - Current Stage 5.2 status: deferred until an additional GNOME Wayland test environment is available.
 
 ## Rollout Artifacts
-- [GNOME_WAYLAND_BRIDGE_ALPHA_ROLLOUT_CHECKLIST.md](/home/jon/edmc_plugins/EDMCHotkeys/docs/release/GNOME_WAYLAND_BRIDGE_ALPHA_ROLLOUT_CHECKLIST.md)
-- [GNOME_WAYLAND_BRIDGE_ISSUE_TRIAGE_TEMPLATE.md](/home/jon/edmc_plugins/EDMCHotkeys/docs/release/GNOME_WAYLAND_BRIDGE_ISSUE_TRIAGE_TEMPLATE.md)
-- [GNOME_WAYLAND_BRIDGE_GA_DECISION_RECORD.md](/home/jon/edmc_plugins/EDMCHotkeys/docs/release/GNOME_WAYLAND_BRIDGE_GA_DECISION_RECORD.md)
+- [GNOME_WAYLAND_BRIDGE_ALPHA_ROLLOUT_CHECKLIST.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/release/GNOME_WAYLAND_BRIDGE_ALPHA_ROLLOUT_CHECKLIST.md)
+- [GNOME_WAYLAND_BRIDGE_ISSUE_TRIAGE_TEMPLATE.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/release/GNOME_WAYLAND_BRIDGE_ISSUE_TRIAGE_TEMPLATE.md)
+- [GNOME_WAYLAND_BRIDGE_GA_DECISION_RECORD.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/release/GNOME_WAYLAND_BRIDGE_GA_DECISION_RECORD.md)
 
 ## Linked QA Evidence
-- [GNOME_WAYLAND_BRIDGE_PHASE4_QA_MATRIX.md](/home/jon/edmc_plugins/EDMCHotkeys/docs/qa/GNOME_WAYLAND_BRIDGE_PHASE4_QA_MATRIX.md)
-
+- [GNOME_WAYLAND_BRIDGE_PHASE4_QA_MATRIX.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/qa/GNOME_WAYLAND_BRIDGE_PHASE4_QA_MATRIX.md)

@@ -1,7 +1,7 @@
 # Wayland Portal Startup Hardening Plan
 
 Status: Draft  
-Owner: EDMC-Hotkeys  
+Owner: EDMCHotkeys  
 Last Updated: 2026-02-26
 
 ## Problem Statement

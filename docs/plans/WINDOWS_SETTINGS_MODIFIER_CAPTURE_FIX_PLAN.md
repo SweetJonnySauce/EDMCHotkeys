@@ -1,7 +1,7 @@
 # Windows Settings Modifier Capture Fix Plan
 
 Status: Completed  
-Owner: EDMC-Hotkeys  
+Owner: EDMCHotkeys  
 Last Updated: 2026-02-27
 
 ## Problem Statement

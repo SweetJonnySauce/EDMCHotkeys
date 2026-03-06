@@ -1,4 +1,4 @@
-# EDMC-Hotkeys Companion Artifacts
+# EDMCHotkeys Companion Artifacts
 
 This directory contains optional GNOME Wayland companion artifacts for the
 `linux-wayland-gnome-bridge` backend.

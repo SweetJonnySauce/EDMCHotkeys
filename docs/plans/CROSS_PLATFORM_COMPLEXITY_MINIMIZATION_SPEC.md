@@ -1,7 +1,7 @@
 # Cross-Platform Complexity Minimization Spec
 
 Status: Draft  
-Owner: EDMC-Hotkeys  
+Owner: EDMCHotkeys  
 Last Updated: 2026-02-26
 
 ## 1. Problem Statement

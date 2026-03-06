@@ -50,7 +50,7 @@ class BindingRegistry {
             try {
                 global.display.ungrab_accelerator(action);
             } catch (err) {
-                log(`[EDMC-Hotkeys-Companion] failed to ungrab '${entry.bindingId}': ${err}`);
+                log(`[EDMCHotkeys-Companion] failed to ungrab '${entry.bindingId}': ${err}`);
             }
             Main.wm.allowKeybinding(entry.externalName, Shell.ActionMode.NONE);
         }
@@ -75,11 +75,11 @@ class BindingRegistry {
         try {
             action = global.display.grab_accelerator(accelerator, Meta.KeyBindingFlags.NONE);
         } catch (err) {
-            log(`[EDMC-Hotkeys-Companion] failed to grab accelerator '${accelerator}': ${err}`);
+            log(`[EDMCHotkeys-Companion] failed to grab accelerator '${accelerator}': ${err}`);
             return;
         }
         if (action === Meta.KeyBindingAction.NONE) {
-            log(`[EDMC-Hotkeys-Companion] accelerator unavailable '${accelerator}' for '${bindingId}'`);
+            log(`[EDMCHotkeys-Companion] accelerator unavailable '${accelerator}' for '${bindingId}'`);
             return;
         }
         const externalName = Meta.external_binding_name_for_action(action);
@@ -103,7 +103,7 @@ function _readBindingsConfig(path) {
         const loaded = file.load_contents(null);
         bytes = loaded[1];
     } catch (err) {
-        log(`[EDMC-Hotkeys-Companion] failed to load bindings config '${path}': ${err}`);
+        log(`[EDMCHotkeys-Companion] failed to load bindings config '${path}': ${err}`);
         return [];
     }
 
@@ -111,11 +111,11 @@ function _readBindingsConfig(path) {
     try {
         parsed = JSON.parse(DECODER.decode(bytes));
     } catch (err) {
-        log(`[EDMC-Hotkeys-Companion] invalid JSON in bindings config '${path}': ${err}`);
+        log(`[EDMCHotkeys-Companion] invalid JSON in bindings config '${path}': ${err}`);
         return [];
     }
     if (!parsed || !Array.isArray(parsed.bindings)) {
-        log(`[EDMC-Hotkeys-Companion] bindings config missing 'bindings' array: '${path}'`);
+        log(`[EDMCHotkeys-Companion] bindings config missing 'bindings' array: '${path}'`);
         return [];
     }
     return parsed.bindings;
@@ -134,7 +134,7 @@ export default class EdmcHotkeysExtension extends Extension {
         this._registry.start();
         const bindings = _readBindingsConfig(this._configPath);
         this._registry.replaceBindings(bindings);
-        log(`[EDMC-Hotkeys-Companion] enabled with ${bindings.length} configured binding(s)`);
+        log(`[EDMCHotkeys-Companion] enabled with ${bindings.length} configured binding(s)`);
     }
 
     disable() {
@@ -143,6 +143,6 @@ export default class EdmcHotkeysExtension extends Extension {
         }
         this._registry.stop();
         this._registry = null;
-        log("[EDMC-Hotkeys-Companion] disabled");
+        log("[EDMCHotkeys-Companion] disabled");
     }
 }

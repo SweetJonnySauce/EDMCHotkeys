@@ -1,7 +1,7 @@
 # Wayland Tier 1 Non-Side-Specific Modifier Plan
 
 Status: Completed (Phases 1-4 Completed)  
-Owner: EDMC-Hotkeys  
+Owner: EDMCHotkeys  
 Last Updated: 2026-02-26
 
 ## Problem Statement

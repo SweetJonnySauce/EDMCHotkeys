@@ -1,7 +1,7 @@
 # Action Binding Cardinality Plan
 
 Status: Completed  
-Owner: EDMC-Hotkeys  
+Owner: EDMCHotkeys  
 Last Updated: 2026-02-27
 
 ## Problem Statement
@@ -270,7 +270,7 @@ Phase 2 done definition:
 ## Phase 2 Implementation Results (Completed)
 
 ### Stage 2.1 Outputs (Completed)
-- Added explicit action cardinality metadata in [registry.py](c:\Users\jonow\AppData\Local\EDMarketConnector\plugins\EDMC-Hotkeys\edmc_hotkeys\registry.py):
+- Added explicit action cardinality metadata in [registry.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/edmc_hotkeys/registry.py):
   - `Action.cardinality` field with default `single`.
   - Cardinality constants and validation helpers (`single`/`multi`).
 - Added registration-time normalization:
@@ -278,16 +278,16 @@ Phase 2 done definition:
   - normalized action is stored with canonical cardinality value.
 
 ### Stage 2.2 Outputs (Completed)
-- Extended settings option model in [settings_state.py](c:\Users\jonow\AppData\Local\EDMarketConnector\plugins\EDMC-Hotkeys\edmc_hotkeys\settings_state.py):
+- Extended settings option model in [settings_state.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/edmc_hotkeys/settings_state.py):
   - `ActionOption.cardinality` field with default `single`.
   - `SettingsState.from_document(...)` now propagates normalized action cardinality into action options.
 
 ### Stage 2.3 Outputs (Completed)
 - Added compatibility-focused tests:
-  - [test_action_registry.py](c:\Users\jonow\AppData\Local\EDMarketConnector\plugins\EDMC-Hotkeys\tests\test_action_registry.py):
+  - [test_action_registry.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/tests/test_action_registry.py):
     - default cardinality is `single`,
     - invalid cardinality normalizes to `single` with warning.
-  - [test_settings_state.py](c:\Users\jonow\AppData\Local\EDMarketConnector\plugins\EDMC-Hotkeys\tests\test_settings_state.py):
+  - [test_settings_state.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/tests/test_settings_state.py):
     - action option cardinality defaults to `single`,
     - explicit `multi` propagation,
     - invalid cardinality normalization to `single`.
@@ -410,7 +410,7 @@ Phase 3 done definition:
 ## Phase 3 Implementation Results (Completed)
 
 ### Stage 3.1 Outputs (Completed)
-- Updated action filtering in [settings_ui.py](c:\Users\jonow\AppData\Local\EDMarketConnector\plugins\EDMC-Hotkeys\edmc_hotkeys\settings_ui.py):
+- Updated action filtering in [settings_ui.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/edmc_hotkeys/settings_ui.py):
   - exclusion now applies only to `single` actions,
   - exclusion source rows must be enabled,
   - disabled rows are ignored for reservation.
@@ -419,19 +419,19 @@ Phase 3 done definition:
 ### Stage 3.2 Outputs (Completed)
 - Confirmed `multi` actions remain selectable across rows even when already assigned.
 - Preserved existing recompute triggers and invalid-action clear behavior.
-- Updated dropdown tests in [test_settings_ui.py](c:\Users\jonow\AppData\Local\EDMarketConnector\plugins\EDMC-Hotkeys\tests\test_settings_ui.py):
+- Updated dropdown tests in [test_settings_ui.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/tests/test_settings_ui.py):
   - disabled-row assignments do not reserve actions,
   - `multi` remains available when assigned elsewhere,
   - only `single` actions are excluded.
 
 ### Stage 3.3 Outputs (Completed)
-- Added cardinality-aware validation warnings in [settings_state.py](c:\Users\jonow\AppData\Local\EDMarketConnector\plugins\EDMC-Hotkeys\edmc_hotkeys\settings_state.py):
+- Added cardinality-aware validation warnings in [settings_state.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/edmc_hotkeys/settings_state.py):
   - duplicate enabled `single` action usage -> warning,
   - duplicate enabled `multi` with identical payload -> warning,
   - duplicate enabled `multi` with distinct payload -> allowed,
   - disabled rows ignored for both warning families.
 - Added canonical payload-key comparison helper for stable `multi` payload uniqueness checks.
-- Added validation coverage in [test_settings_state.py](c:\Users\jonow\AppData\Local\EDMarketConnector\plugins\EDMC-Hotkeys\tests\test_settings_state.py) for duplicate single/multi and disabled-row exceptions.
+- Added validation coverage in [test_settings_state.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/tests/test_settings_state.py) for duplicate single/multi and disabled-row exceptions.
 
 ### Phase 3 Verification Command Outcomes
 - `.\.venv\Scripts\python.exe -m pytest tests/test_settings_ui.py -k "action_dropdown and single"` passed:
@@ -571,14 +571,14 @@ Phase 4 done definition:
 ### Stage 4.1 Outputs (Completed)
 - Audited registry/state coverage against the cardinality contract.
 - Added coverage backfills:
-  - [test_action_registry.py](c:\Users\jonow\AppData\Local\EDMarketConnector\plugins\EDMC-Hotkeys\tests\test_action_registry.py): mixed-case cardinality normalization to `multi`.
-  - [test_settings_state.py](c:\Users\jonow\AppData\Local\EDMarketConnector\plugins\EDMC-Hotkeys\tests\test_settings_state.py): mixed-case cardinality normalization to `multi` in `SettingsState.from_document(...)`.
+  - [test_action_registry.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/tests/test_action_registry.py): mixed-case cardinality normalization to `multi`.
+  - [test_settings_state.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/tests/test_settings_state.py): mixed-case cardinality normalization to `multi` in `SettingsState.from_document(...)`.
 - Confirmed warning-level assertions remain field/message-scoped for duplicate `single` and duplicate `multi` payload paths.
 
 ### Stage 4.2 Outputs (Completed)
 - Audited settings UI matrix for cardinality filtering and disabled-row behavior.
 - Added coverage backfill:
-  - [test_settings_ui.py](c:\Users\jonow\AppData\Local\EDMarketConnector\plugins\EDMC-Hotkeys\tests\test_settings_ui.py): mixed-case `multi` cardinality still behaves as `multi` in dropdown filtering.
+  - [test_settings_ui.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/tests/test_settings_ui.py): mixed-case `multi` cardinality still behaves as `multi` in dropdown filtering.
 - Confirmed existing tests cover:
   - only `single` exclusion,
   - `multi` reuse,
@@ -621,14 +621,14 @@ Result:
 ## Phase 5 Implementation Results (Completed)
 
 ### Stage 5.1 Outputs (Completed)
-- Updated plugin author guidance in [register-action-with-edmc-hotkeys.md](c:\Users\jonow\AppData\Local\EDMarketConnector\plugins\EDMC-Hotkeys\docs\register-action-with-edmc-hotkeys.md):
+- Updated plugin author guidance in [register-action-with-edmc-hotkeys.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/register-action-with-edmc-hotkeys.md):
   - added `cardinality` to `Action(...)` API shape (`single`/`multi`, default `single`),
   - documented cardinality behavior and invalid-value normalization,
   - updated registration example to show `single` actions (`on/off/toggle`) and `multi` action (`color`),
   - added cardinality-specific examples for binding intent.
 
 ### Stage 5.2 Outputs (Completed)
-- Updated manual QA scenarios in [manual-qa-checklist.md](c:\Users\jonow\AppData\Local\EDMarketConnector\plugins\EDMC-Hotkeys\docs\manual-qa-checklist.md):
+- Updated manual QA scenarios in [manual-qa-checklist.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/manual-qa-checklist.md):
   - expanded `Action Dropdown Filtering` section to cover:
     - `single` exclusion,
     - `multi` reuse,

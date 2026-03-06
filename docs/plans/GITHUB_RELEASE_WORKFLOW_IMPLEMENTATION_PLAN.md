@@ -1,14 +1,14 @@
 # GitHub Release Workflow Implementation Plan
 
 Status: Completed
-Owner: EDMC-Hotkeys
+Owner: EDMCHotkeys
 Last Updated: 2026-02-27
 
 ## Goal
-Implement a single GitHub release workflow that builds and publishes platform-specific EDMC-Hotkeys artifacts with strict packaging isolation and vendored dependencies.
+Implement a single GitHub release workflow that builds and publishes platform-specific EDMCHotkeys artifacts with strict packaging isolation and vendored dependencies.
 
 ## Inputs
-- [GITHUB_RELEASE_WORKFLOW_REQUIREMENTS.md](/home/jon/edmc_plugins/EDMC-Hotkeys/docs/plans/GITHUB_RELEASE_WORKFLOW_REQUIREMENTS.md)
+- [GITHUB_RELEASE_WORKFLOW_REQUIREMENTS.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/plans/GITHUB_RELEASE_WORKFLOW_REQUIREMENTS.md)
 
 ## Scope
 - Implement `.github/workflows/release.yml`.
@@ -42,7 +42,7 @@ Implement a single GitHub release workflow that builds and publishes platform-sp
 
 ### Phase 2 Validation
 1. Build each variant locally to `dist/`.
-2. Verify tarballs unpack into single `EDMC-Hotkeys/` top-level folder.
+2. Verify tarballs unpack into single `EDMCHotkeys/` top-level folder.
 3. Verify strict include/exclude checks fail correctly when violated.
 
 ## Phase 3 — GitHub Workflow (Status: Completed)
@@ -79,23 +79,23 @@ Implement a single GitHub release workflow that builds and publishes platform-sp
 - Keep local packaging scripts callable for manual release fallback.
 
 ## Implementation Results
-- Added release packager: [build_release_artifact.py](/home/jon/edmc_plugins/EDMC-Hotkeys/scripts/build_release_artifact.py)
+- Added release packager: [build_release_artifact.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/scripts/build_release_artifact.py)
   - Variant-specific vendoring via `scripts/vendor_xlib.sh` and `scripts/vendor_dbus_next.sh`.
   - Enforces strict include/exclude policy and top-level tar layout.
   - Added Windows variant packaging to produce a zip artifact without vendored dependencies.
-- Added local build targets in [Makefile](/home/jon/edmc_plugins/EDMC-Hotkeys/Makefile):
+- Added local build targets in [Makefile](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/Makefile):
   - `release-build-linux-x11`
   - `release-build-linux-wayland`
   - `release-build-linux-wayland-gnome`
   - `release-build-windows`
   - `release-build-all`
-- Added CI workflow: [release.yml](/home/jon/edmc_plugins/EDMC-Hotkeys/.github/workflows/release.yml)
+- Added CI workflow: [release.yml](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/.github/workflows/release.yml)
   - Tag releases: `vX.Y.Z`
   - Manual pre-releases: `vX.Y.Z-rc.N`
   - Existing-release guard
   - Artifact matrix (Linux + Windows) + checksum generation + live publish
-- Added operator runbook: [GITHUB_RELEASE_WORKFLOW_RUNBOOK.md](/home/jon/edmc_plugins/EDMC-Hotkeys/docs/release/GITHUB_RELEASE_WORKFLOW_RUNBOOK.md)
-- Added tests: [test_release_artifact_builder.py](/home/jon/edmc_plugins/EDMC-Hotkeys/tests/test_release_artifact_builder.py)
+- Added operator runbook: [GITHUB_RELEASE_WORKFLOW_RUNBOOK.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/release/GITHUB_RELEASE_WORKFLOW_RUNBOOK.md)
+- Added tests: [test_release_artifact_builder.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/tests/test_release_artifact_builder.py)
   - version validation coverage
   - required/forbidden path enforcement coverage
   - global excludes enforcement coverage

@@ -1,7 +1,7 @@
 # Settings Action Dropdown Filter Plan
 
 Status: Completed  
-Owner: EDMC-Hotkeys  
+Owner: EDMCHotkeys  
 Last Updated: 2026-02-27
 
 ## Problem Statement
@@ -452,7 +452,7 @@ Phase 3 done definition:
 ## Phase 3 Implementation Results (Completed)
 
 ### Stage 3.1 Outputs (Completed)
-- Added deterministic filtering tests in [test_settings_ui.py](c:\Users\jonow\AppData\Local\EDMarketConnector\plugins\EDMC-Hotkeys\tests\test_settings_ui.py):
+- Added deterministic filtering tests in [test_settings_ui.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/tests/test_settings_ui.py):
   - `test_action_dropdown_empty_when_plugin_unset`
   - `test_action_dropdown_filters_case_insensitive_plugin_match`
   - `test_action_dropdown_excludes_actions_assigned_in_other_rows`
@@ -462,7 +462,7 @@ Phase 3 done definition:
   - `_DummyStringVar`, `_DummyCombo`, `_action_option`, `_row_for_dropdown`, `_build_dropdown_panel`.
 
 ### Stage 3.2 Outputs (Completed)
-- Added trigger and auto-clear tests in [test_settings_ui.py](c:\Users\jonow\AppData\Local\EDMarketConnector\plugins\EDMC-Hotkeys\tests\test_settings_ui.py):
+- Added trigger and auto-clear tests in [test_settings_ui.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/tests/test_settings_ui.py):
   - `test_action_clears_immediately_when_becomes_ineligible`
   - `test_payload_clears_when_action_is_auto_cleared`
   - `test_action_dropdown_recomputes_on_plugin_change`
@@ -569,7 +569,7 @@ Phase 4 done definition:
 ## Phase 4 Implementation Results (Completed)
 
 ### Stage 4.1 Outputs (Completed)
-- Updated [manual-qa-checklist.md](c:\Users\jonow\AppData\Local\EDMarketConnector\plugins\EDMC-Hotkeys\docs\manual-qa-checklist.md) with a new `Action Dropdown Filtering` subsection.
+- Updated [manual-qa-checklist.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/manual-qa-checklist.md) with a new `Action Dropdown Filtering` subsection.
 - Added explicit manual checks for:
   - empty-plugin rows showing empty action lists,
   - case-insensitive plugin filtering,

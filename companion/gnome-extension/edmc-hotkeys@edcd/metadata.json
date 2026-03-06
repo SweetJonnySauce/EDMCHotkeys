@@ -1,7 +1,7 @@
 {
   "uuid": "edmc-hotkeys@edcd",
   "name": "EDMC Hotkeys Companion",
-  "description": "Companion shortcut capture extension for EDMC-Hotkeys bridge backend.",
+  "description": "Companion shortcut capture extension for EDMCHotkeys bridge backend.",
   "version": 1,
   "shell-version": [
     "45",

@@ -1,7 +1,7 @@
 # GNOME Wayland Bridge Hardening Implementation Plan
 
 Status: In Progress (Phases 1, 2, 3, 4, and 6 completed; Phase 5 in progress)  
-Owner: EDMC-Hotkeys  
+Owner: EDMCHotkeys  
 Last Updated: 2026-02-27
 
 ## Goal
@@ -204,16 +204,16 @@ Readiness checks for next phases:
 ### Phase 1 Implementation Results (2026-02-26)
 - Stage 1.1 completed:
   - Added architecture freeze document with explicit current sender path vs future companion-artifact path:
-    - [gnome_bridge_architecture.md](/home/jon/edmc_plugins/EDMC-Hotkeys/docs/architecture/gnome_bridge_architecture.md)
+    - [gnome_bridge_architecture.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/architecture/gnome_bridge_architecture.md)
   - Resolved future companion-artifact topology for v1 planning:
     - extension -> helper -> plugin (no direct extension-to-plugin IPC in v1 plan).
 - Stage 1.2 completed:
   - Added protocol v1 specification and compatibility contract:
-    - [gnome-bridge-protocol-v1.md](/home/jon/edmc_plugins/EDMC-Hotkeys/docs/gnome-bridge-protocol-v1.md)
+    - [gnome-bridge-protocol-v1.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/gnome-bridge-protocol-v1.md)
   - Defined versioning/type behavior and legacy compatibility mode guidance.
 - Stage 1.3 completed:
   - Added local threat model and security controls checklist:
-    - [gnome_bridge_threat_model.md](/home/jon/edmc_plugins/EDMC-Hotkeys/docs/security/gnome_bridge_threat_model.md)
+    - [gnome_bridge_threat_model.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/security/gnome_bridge_threat_model.md)
   - Defined token/replay/rate-limit target controls for future hardening phases.
 - Stage 1.4 completed:
   - Mode policy and precedence frozen for current implementation and future explicit mode model.
@@ -392,30 +392,30 @@ Security-focused validation expectations:
 
 ### Phase 2 Implementation Results (2026-02-26)
 - Stage 2.1 completed:
-  - Secure runtime defaults implemented in [gnome_bridge.py](/home/jon/edmc_plugins/EDMC-Hotkeys/edmc_hotkeys/backends/gnome_bridge.py):
+  - Secure runtime defaults implemented in [gnome_bridge.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/edmc_hotkeys/backends/gnome_bridge.py):
     - default socket path moved to `$XDG_RUNTIME_DIR/edmc_hotkeys/bridge.sock`
     - runtime directory ownership/permission enforcement
     - secure token file creation/validation (`0600`)
-  - Sender sync now receives token-file path wiring through [gnome_sender_sync.py](/home/jon/edmc_plugins/EDMC-Hotkeys/edmc_hotkeys/backends/gnome_sender_sync.py).
+  - Sender sync now receives token-file path wiring through [gnome_sender_sync.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/edmc_hotkeys/backends/gnome_sender_sync.py).
 - Stage 2.2 completed:
-  - Hardened protocol-v1 parsing and auth gate implemented in [gnome_bridge.py](/home/jon/edmc_plugins/EDMC-Hotkeys/edmc_hotkeys/backends/gnome_bridge.py).
+  - Hardened protocol-v1 parsing and auth gate implemented in [gnome_bridge.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/edmc_hotkeys/backends/gnome_bridge.py).
   - Legacy payload handling is compatibility-only behind explicit flags.
-  - Sender script updated to emit v1 payloads by default in [gnome_bridge_send.py](/home/jon/edmc_plugins/EDMC-Hotkeys/scripts/gnome_bridge_send.py).
+  - Sender script updated to emit v1 payloads by default in [gnome_bridge_send.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/scripts/gnome_bridge_send.py).
 - Stage 2.3 completed:
-  - Replay/timestamp guard, nonce cache, per-sender/global rate limits, and bounded intake queue added in [gnome_bridge.py](/home/jon/edmc_plugins/EDMC-Hotkeys/edmc_hotkeys/backends/gnome_bridge.py).
+  - Replay/timestamp guard, nonce cache, per-sender/global rate limits, and bounded intake queue added in [gnome_bridge.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/edmc_hotkeys/backends/gnome_bridge.py).
 - Stage 2.4 completed:
-  - Runtime status expanded with hardening counters and startup summary context in [gnome_bridge.py](/home/jon/edmc_plugins/EDMC-Hotkeys/edmc_hotkeys/backends/gnome_bridge.py).
-  - Diagnostics/startup logging updated in [plugin.py](/home/jon/edmc_plugins/EDMC-Hotkeys/edmc_hotkeys/plugin.py).
+  - Runtime status expanded with hardening counters and startup summary context in [gnome_bridge.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/edmc_hotkeys/backends/gnome_bridge.py).
+  - Diagnostics/startup logging updated in [plugin.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/edmc_hotkeys/plugin.py).
   - User troubleshooting docs updated:
-    - [gnome-wayland-bridge-prototype.md](/home/jon/edmc_plugins/EDMC-Hotkeys/docs/gnome-wayland-bridge-prototype.md)
-    - [linux-user-setup.md](/home/jon/edmc_plugins/EDMC-Hotkeys/docs/linux-user-setup.md)
+    - [gnome-wayland-bridge-prototype.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/gnome-wayland-bridge-prototype.md)
+    - [linux-user-setup.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/linux-user-setup.md)
 - Stage 2.5 completed:
   - Explicit backend mode selection/persistence plumbing implemented in:
-    - [selector.py](/home/jon/edmc_plugins/EDMC-Hotkeys/edmc_hotkeys/backends/selector.py)
-    - [plugin.py](/home/jon/edmc_plugins/EDMC-Hotkeys/edmc_hotkeys/plugin.py)
-    - [load.py](/home/jon/edmc_plugins/EDMC-Hotkeys/load.py)
+    - [selector.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/edmc_hotkeys/backends/selector.py)
+    - [plugin.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/edmc_hotkeys/plugin.py)
+    - [load.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/load.py)
   - Modes supported: `auto`, `wayland_portal`, `wayland_gnome_bridge`, `x11`.
-  - Added backend-mode resolution coverage in [test_load_backend_mode.py](/home/jon/edmc_plugins/EDMC-Hotkeys/tests/test_load_backend_mode.py).
+  - Added backend-mode resolution coverage in [test_load_backend_mode.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/tests/test_load_backend_mode.py).
 
 ### Phase 2 Verification Results (2026-02-26)
 1. Targeted phase-2 coverage passed:
@@ -572,32 +572,32 @@ Evidence capture requirements:
 ### Phase 3 Implementation Results (2026-02-26)
 - Stage 3.1 completed:
   - Added GNOME extension skeleton with lifecycle + accelerator registration manager:
-    - [metadata.json](/home/jon/edmc_plugins/EDMC-Hotkeys/companion/gnome-extension/edmc-hotkeys@edcd/metadata.json)
-    - [extension.js](/home/jon/edmc_plugins/EDMC-Hotkeys/companion/gnome-extension/edmc-hotkeys@edcd/extension.js)
-    - [helper_bridge.js](/home/jon/edmc_plugins/EDMC-Hotkeys/companion/gnome-extension/edmc-hotkeys@edcd/helper_bridge.js)
+    - [metadata.json](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/companion/gnome-extension/edmc-hotkeys@edcd/metadata.json)
+    - [extension.js](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/companion/gnome-extension/edmc-hotkeys@edcd/extension.js)
+    - [helper_bridge.js](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/companion/gnome-extension/edmc-hotkeys@edcd/helper_bridge.js)
   - Added lifecycle architecture note:
-    - [gnome_companion_extension_lifecycle.md](/home/jon/edmc_plugins/EDMC-Hotkeys/docs/architecture/gnome_companion_extension_lifecycle.md)
+    - [gnome_companion_extension_lifecycle.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/architecture/gnome_companion_extension_lifecycle.md)
 - Stage 3.2 completed:
   - Added hardened companion helper sender with token loading, protocol-v1 payloads, retry/backoff, and telemetry:
-    - [gnome_bridge_companion_send.py](/home/jon/edmc_plugins/EDMC-Hotkeys/companion/helper/gnome_bridge_companion_send.py)
+    - [gnome_bridge_companion_send.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/companion/helper/gnome_bridge_companion_send.py)
   - Added plugin-bindings export utility for extension config sync:
-    - [companion_bindings_export.py](/home/jon/edmc_plugins/EDMC-Hotkeys/companion/helper/companion_bindings_export.py)
-    - [export_companion_bindings.py](/home/jon/edmc_plugins/EDMC-Hotkeys/scripts/export_companion_bindings.py)
+    - [companion_bindings_export.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/companion/helper/companion_bindings_export.py)
+    - [export_companion_bindings.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/scripts/export_companion_bindings.py)
   - Added helper documentation:
-    - [companion/helper/README.md](/home/jon/edmc_plugins/EDMC-Hotkeys/companion/helper/README.md)
+    - [companion/helper/README.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/companion/helper/README.md)
 - Stage 3.3 completed:
   - Added companion artifact lifecycle scripts:
-    - [install_gnome_bridge_companion.sh](/home/jon/edmc_plugins/EDMC-Hotkeys/scripts/install_gnome_bridge_companion.sh)
-    - [uninstall_gnome_bridge_companion.sh](/home/jon/edmc_plugins/EDMC-Hotkeys/scripts/uninstall_gnome_bridge_companion.sh)
-    - [verify_gnome_bridge_companion.sh](/home/jon/edmc_plugins/EDMC-Hotkeys/scripts/verify_gnome_bridge_companion.sh)
-    - [package_gnome_bridge_companion.sh](/home/jon/edmc_plugins/EDMC-Hotkeys/scripts/package_gnome_bridge_companion.sh)
+    - [install_gnome_bridge_companion.sh](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/scripts/install_gnome_bridge_companion.sh)
+    - [uninstall_gnome_bridge_companion.sh](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/scripts/uninstall_gnome_bridge_companion.sh)
+    - [verify_gnome_bridge_companion.sh](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/scripts/verify_gnome_bridge_companion.sh)
+    - [package_gnome_bridge_companion.sh](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/scripts/package_gnome_bridge_companion.sh)
   - Added `Makefile` targets for install/uninstall/verify/package companion workflows.
 - Stage 3.4 completed:
   - Added compatibility/support matrix document:
-    - [gnome-companion-compatibility-matrix.md](/home/jon/edmc_plugins/EDMC-Hotkeys/docs/gnome-companion-compatibility-matrix.md)
+    - [gnome-companion-compatibility-matrix.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/gnome-companion-compatibility-matrix.md)
   - Updated user docs with companion install/export/rollback references:
-    - [gnome-wayland-bridge-prototype.md](/home/jon/edmc_plugins/EDMC-Hotkeys/docs/gnome-wayland-bridge-prototype.md)
-    - [linux-user-setup.md](/home/jon/edmc_plugins/EDMC-Hotkeys/docs/linux-user-setup.md)
+    - [gnome-wayland-bridge-prototype.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/gnome-wayland-bridge-prototype.md)
+    - [linux-user-setup.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/linux-user-setup.md)
 
 ### Phase 3 Verification Results (2026-02-26)
 1. New companion unit/layout tests passed:
@@ -775,22 +775,22 @@ Evidence requirements:
 
 ### Phase 4 Implementation Results (2026-02-27)
 - Stage 4.1 completed:
-  - Added missing deterministic hardening unit tests in [test_backends.py](/home/jon/edmc_plugins/EDMC-Hotkeys/tests/test_backends.py):
+  - Added missing deterministic hardening unit tests in [test_backends.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/tests/test_backends.py):
     - missing-token auth reject
     - stale timestamp replay reject
     - global rate-limit drop
     - malformed JSON reject counter
     - backend restart lifecycle dispatch/reset behavior
 - Stage 4.2 completed:
-  - Added script-level integration tests in [test_companion_scripts_integration.py](/home/jon/edmc_plugins/EDMC-Hotkeys/tests/test_companion_scripts_integration.py):
+  - Added script-level integration tests in [test_companion_scripts_integration.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/tests/test_companion_scripts_integration.py):
     - install -> verify -> uninstall workflow in isolated HOME
     - export script end-to-end config generation
   - Fixed integration defect discovered during testing:
-    - [export_companion_bindings.py](/home/jon/edmc_plugins/EDMC-Hotkeys/scripts/export_companion_bindings.py) now bootstraps repo root into `sys.path` for standalone execution.
-    - [install_gnome_bridge_companion.sh](/home/jon/edmc_plugins/EDMC-Hotkeys/scripts/install_gnome_bridge_companion.sh) now falls back to sample config when export fails.
+    - [export_companion_bindings.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/scripts/export_companion_bindings.py) now bootstraps repo root into `sys.path` for standalone execution.
+    - [install_gnome_bridge_companion.sh](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/scripts/install_gnome_bridge_companion.sh) now falls back to sample config when export fails.
 - Stage 4.3 completed:
   - Added and completed QA matrix with scripted-manual + interactive evidence:
-    - [GNOME_WAYLAND_BRIDGE_PHASE4_QA_MATRIX.md](/home/jon/edmc_plugins/EDMC-Hotkeys/docs/qa/GNOME_WAYLAND_BRIDGE_PHASE4_QA_MATRIX.md)
+    - [GNOME_WAYLAND_BRIDGE_PHASE4_QA_MATRIX.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/qa/GNOME_WAYLAND_BRIDGE_PHASE4_QA_MATRIX.md)
   - Scripted rows (install/verify/export/uninstall and helper failure modes) passed.
   - Interactive rows passed:
     - extension disable while backend active
@@ -799,14 +799,14 @@ Evidence requirements:
     - stale runtime dir/socket recovery in live EDMC session
 - Stage 4.4 completed:
   - Added release completeness check script:
-    - [check_companion_release.py](/home/jon/edmc_plugins/EDMC-Hotkeys/scripts/check_companion_release.py)
+    - [check_companion_release.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/scripts/check_companion_release.py)
   - Added automated check coverage:
-    - [test_companion_release_check.py](/home/jon/edmc_plugins/EDMC-Hotkeys/tests/test_companion_release_check.py)
-  - Wired release check into [Makefile](/home/jon/edmc_plugins/EDMC-Hotkeys/Makefile) (`companion-release-check`, included in `make check`).
+    - [test_companion_release_check.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/tests/test_companion_release_check.py)
+  - Wired release check into [Makefile](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/Makefile) (`companion-release-check`, included in `make check`).
   - Updated companion docs to link QA/matrix artifacts:
-    - [gnome-wayland-bridge-prototype.md](/home/jon/edmc_plugins/EDMC-Hotkeys/docs/gnome-wayland-bridge-prototype.md)
-    - [linux-user-setup.md](/home/jon/edmc_plugins/EDMC-Hotkeys/docs/linux-user-setup.md)
-    - [gnome-companion-compatibility-matrix.md](/home/jon/edmc_plugins/EDMC-Hotkeys/docs/gnome-companion-compatibility-matrix.md)
+    - [gnome-wayland-bridge-prototype.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/gnome-wayland-bridge-prototype.md)
+    - [linux-user-setup.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/linux-user-setup.md)
+    - [gnome-companion-compatibility-matrix.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/gnome-companion-compatibility-matrix.md)
 
 ### Phase 4 Verification Results (2026-02-27)
 1. Stage 4.1 targeted unit tests passed:
@@ -977,21 +977,21 @@ Evidence requirements:
 ### Phase 5 Implementation Results (2026-02-27)
 - Stage 5.1 completed:
   - Added alpha rollout checklist:
-    - [GNOME_WAYLAND_BRIDGE_ALPHA_ROLLOUT_CHECKLIST.md](/home/jon/edmc_plugins/EDMC-Hotkeys/docs/release/GNOME_WAYLAND_BRIDGE_ALPHA_ROLLOUT_CHECKLIST.md)
+    - [GNOME_WAYLAND_BRIDGE_ALPHA_ROLLOUT_CHECKLIST.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/release/GNOME_WAYLAND_BRIDGE_ALPHA_ROLLOUT_CHECKLIST.md)
   - Added rollout issue triage template:
-    - [GNOME_WAYLAND_BRIDGE_ISSUE_TRIAGE_TEMPLATE.md](/home/jon/edmc_plugins/EDMC-Hotkeys/docs/release/GNOME_WAYLAND_BRIDGE_ISSUE_TRIAGE_TEMPLATE.md)
+    - [GNOME_WAYLAND_BRIDGE_ISSUE_TRIAGE_TEMPLATE.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/release/GNOME_WAYLAND_BRIDGE_ISSUE_TRIAGE_TEMPLATE.md)
   - Updated compatibility guidance to reference completed Phase 4 evidence:
-    - [gnome-companion-compatibility-matrix.md](/home/jon/edmc_plugins/EDMC-Hotkeys/docs/gnome-companion-compatibility-matrix.md)
+    - [gnome-companion-compatibility-matrix.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/gnome-companion-compatibility-matrix.md)
 - Stage 5.2 deferred:
   - Beta expansion/trend tracking criteria are documented.
   - Rollout/ops docs were updated to expose Phase 5 artifacts:
-    - [linux-user-setup.md](/home/jon/edmc_plugins/EDMC-Hotkeys/docs/linux-user-setup.md)
-    - [RELEASE_NOTES.md](/home/jon/edmc_plugins/EDMC-Hotkeys/RELEASE_NOTES.md)
+    - [linux-user-setup.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/linux-user-setup.md)
+    - [RELEASE_NOTES.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/RELEASE_NOTES.md)
   - Additional validated GNOME Wayland environment rows remain to be executed.
   - Execution is deferred pending access to at least one additional GNOME Wayland environment.
 - Stage 5.3 completed:
   - Added GA/default-policy decision record:
-    - [GNOME_WAYLAND_BRIDGE_GA_DECISION_RECORD.md](/home/jon/edmc_plugins/EDMC-Hotkeys/docs/release/GNOME_WAYLAND_BRIDGE_GA_DECISION_RECORD.md)
+    - [GNOME_WAYLAND_BRIDGE_GA_DECISION_RECORD.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/release/GNOME_WAYLAND_BRIDGE_GA_DECISION_RECORD.md)
   - Decision captured: defer GA promotion, keep bridge sender path opt-in, keep current `auto` behavior.
 
 ### Phase 5 Verification Results (2026-02-27)
@@ -1001,9 +1001,9 @@ Evidence requirements:
    - `source .venv/bin/activate && make check` (`144 passed`, companion release check `OK`)
 3. Documentation deliverables for Stage 5.1 and Stage 5.3 are present and linked from this plan.
 4. Phase 4 QA evidence remains fully passing in:
-   - [GNOME_WAYLAND_BRIDGE_PHASE4_QA_MATRIX.md](/home/jon/edmc_plugins/EDMC-Hotkeys/docs/qa/GNOME_WAYLAND_BRIDGE_PHASE4_QA_MATRIX.md)
+   - [GNOME_WAYLAND_BRIDGE_PHASE4_QA_MATRIX.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/qa/GNOME_WAYLAND_BRIDGE_PHASE4_QA_MATRIX.md)
 5. Compatibility matrix reflects validated baseline rollout input for alpha:
-   - [gnome-companion-compatibility-matrix.md](/home/jon/edmc_plugins/EDMC-Hotkeys/docs/gnome-companion-compatibility-matrix.md)
+   - [gnome-companion-compatibility-matrix.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/gnome-companion-compatibility-matrix.md)
 
 ### Phase 5 Remaining Work
 - Complete Stage 5.2 by validating at least one additional GNOME Wayland environment row and updating compatibility statuses.
@@ -1076,7 +1076,7 @@ Deliverables:
   - unregister/clear on backend stop
 
 Touch Points:
-- [GNOME_WAYLAND_BRIDGE_HARDENING_IMPLEMENTATION_PLAN.md](/home/jon/edmc_plugins/EDMC-Hotkeys/docs/plans/GNOME_WAYLAND_BRIDGE_HARDENING_IMPLEMENTATION_PLAN.md)
+- [GNOME_WAYLAND_BRIDGE_HARDENING_IMPLEMENTATION_PLAN.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/plans/GNOME_WAYLAND_BRIDGE_HARDENING_IMPLEMENTATION_PLAN.md)
 - optional sender protocol spec file (if created): `docs/gnome-bridge-protocol-v1.md`
 
 Exit Criteria:
@@ -1100,7 +1100,7 @@ Implementation Notes:
 
 Touch Points:
 - sender path implementation path (to be finalized in 6.1)
-- bridge sender compatibility with [gnome_bridge_send.py](/home/jon/edmc_plugins/EDMC-Hotkeys/scripts/gnome_bridge_send.py)
+- bridge sender compatibility with [gnome_bridge_send.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/scripts/gnome_bridge_send.py)
 
 Exit Criteria:
 - No manual GNOME custom-keybinding shell commands required for end users.
@@ -1118,9 +1118,9 @@ Deliverables:
   - if sender path is absent/unreachable, plugin stays fully operational and logs warning only.
 
 Touch Points (expected):
-- [load.py](/home/jon/edmc_plugins/EDMC-Hotkeys/load.py)
-- [plugin.py](/home/jon/edmc_plugins/EDMC-Hotkeys/edmc_hotkeys/plugin.py)
-- [gnome_bridge.py](/home/jon/edmc_plugins/EDMC-Hotkeys/edmc_hotkeys/backends/gnome_bridge.py)
+- [load.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/load.py)
+- [plugin.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/edmc_hotkeys/plugin.py)
+- [gnome_bridge.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/edmc_hotkeys/backends/gnome_bridge.py)
 - tests for sync lifecycle in `tests/`
 
 Exit Criteria:
@@ -1140,8 +1140,8 @@ Deliverables:
 - Per-binding sync failure logs with binding ID and concise reason.
 
 Touch Points (expected):
-- [plugin.py](/home/jon/edmc_plugins/EDMC-Hotkeys/edmc_hotkeys/plugin.py)
-- [gnome_bridge.py](/home/jon/edmc_plugins/EDMC-Hotkeys/edmc_hotkeys/backends/gnome_bridge.py)
+- [plugin.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/edmc_hotkeys/plugin.py)
+- [gnome_bridge.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/edmc_hotkeys/backends/gnome_bridge.py)
 - docs troubleshooting section
 
 Exit Criteria:
@@ -1192,7 +1192,7 @@ Manual validation gates (GNOME Wayland):
 
 ### Phase 6 Acceptance Criteria
 - User can enable sender path and use bindings without manual GNOME custom keybinding commands.
-- Binding changes in EDMC-Hotkeys automatically update sender-path key registrations.
+- Binding changes in EDMCHotkeys automatically update sender-path key registrations.
 - Logs clearly distinguish backend unavailable, receiver-only, sync failure, and successful dispatch.
 - Full automated test gates pass.
 
@@ -1202,25 +1202,25 @@ Manual validation gates (GNOME Wayland):
 
 ### Phase 6 Implementation Results (2026-02-26)
 - Added GNOME sender auto-sync module:
-  - [gnome_sender_sync.py](/home/jon/edmc_plugins/EDMC-Hotkeys/edmc_hotkeys/backends/gnome_sender_sync.py)
+  - [gnome_sender_sync.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/edmc_hotkeys/backends/gnome_sender_sync.py)
   - Converts EDMC hotkeys to GNOME accelerators.
   - Manages GNOME custom-keybinding entries for active bridge bindings.
   - Preserves non-EDMC custom keybindings while replacing managed entries.
 - Integrated auto-sync + diagnostics into bridge backend:
-  - [gnome_bridge.py](/home/jon/edmc_plugins/EDMC-Hotkeys/edmc_hotkeys/backends/gnome_bridge.py)
+  - [gnome_bridge.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/edmc_hotkeys/backends/gnome_bridge.py)
   - Sync on startup/register/unregister and batch-complete.
   - Batch APIs to avoid repeated full sync during `replace_bindings`.
   - Runtime status snapshot for plugin logging.
   - Receiver-only warning when no events are observed after startup grace window.
 - Integrated plugin reconciliation and status reporting:
-  - [plugin.py](/home/jon/edmc_plugins/EDMC-Hotkeys/edmc_hotkeys/plugin.py)
+  - [plugin.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/edmc_hotkeys/plugin.py)
   - Batched backend updates during `replace_bindings`.
   - Idempotent disabled-binding unregister path to avoid false failure warnings.
   - Startup backend runtime-status logging when backend exposes it.
 - Added tests:
-  - [test_gnome_sender_sync.py](/home/jon/edmc_plugins/EDMC-Hotkeys/tests/test_gnome_sender_sync.py)
-  - [test_backends.py](/home/jon/edmc_plugins/EDMC-Hotkeys/tests/test_backends.py)
-  - [test_hotkey_plugin.py](/home/jon/edmc_plugins/EDMC-Hotkeys/tests/test_hotkey_plugin.py)
+  - [test_gnome_sender_sync.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/tests/test_gnome_sender_sync.py)
+  - [test_backends.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/tests/test_backends.py)
+  - [test_hotkey_plugin.py](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/tests/test_hotkey_plugin.py)
 - Added explicit optional backend extension interfaces for minimal-complexity contract hygiene:
   - batch binding update interface
   - runtime status interface

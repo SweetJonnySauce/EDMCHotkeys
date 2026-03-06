@@ -1,14 +1,14 @@
 # GitHub Release Workflow Requirements
 
 Status: Implemented
-Owner: EDMC-Hotkeys
+Owner: EDMCHotkeys
 Last Updated: 2026-02-27
 
 ## Goal
 Define requirements for a GitHub release workflow that produces platform-specific plugin artifacts.
 
 ## Scope
-- Release workflow for EDMC-Hotkeys plugin artifacts.
+- Release workflow for EDMCHotkeys plugin artifacts.
 - Platform-specific packaging with vendored runtime dependencies.
 - Automated release checks before publishing artifacts.
 
@@ -153,7 +153,7 @@ Current iteration:
 
 ### FR-9: Artifact Layout
 - Each released plugin artifact must unpack into a single top-level folder:
-  - `EDMC-Hotkeys/`
+  - `EDMCHotkeys/`
 
 ### FR-10: Pre-release Versioning (Manual Dispatch)
 - Manual dispatch without tag must create a pre-release.
@@ -167,10 +167,10 @@ Current iteration:
 - The single workflow must handle all current artifact variants (`linux-x11`, `linux-wayland`, `linux-wayland-gnome`, `windows`).
 
 ## Artifact Naming (Proposed)
-- `EDMC-Hotkeys-linux-x11-v<version>.tar.gz`
-- `EDMC-Hotkeys-linux-wayland-v<version>.tar.gz`
-- `EDMC-Hotkeys-linux-wayland-gnome-v<version>.tar.gz`
-- `EDMC-Hotkeys-windows-v<version>.zip`
+- `EDMCHotkeys-linux-x11-v<version>.tar.gz`
+- `EDMCHotkeys-linux-wayland-v<version>.tar.gz`
+- `EDMCHotkeys-linux-wayland-gnome-v<version>.tar.gz`
+- `EDMCHotkeys-windows-v<version>.zip`
 - `SHA256SUMS.txt`
 
 ## Acceptance Criteria
@@ -205,7 +205,7 @@ Current iteration:
 14. Tag format is strict semver tag `vX.Y.Z` (starting with `v0.1.0`).
 15. Manual-dispatch run without tag creates pre-release using input version.
 16. Release job fails if target tag release already exists.
-17. Each artifact must unpack to single top-level `EDMC-Hotkeys/` folder.
+17. Each artifact must unpack to single top-level `EDMCHotkeys/` folder.
 18. Linux X11 artifact exclusion policy is strict and must fail if bridge payload files are present.
 19. Manual-dispatch pre-release versions use `-rc.N` suffix form (for example `v0.1.0-rc.1`).
 20. Linux Wayland GNOME artifact ships exactly one companion user doc (`COMPANION_SETUP.md`).

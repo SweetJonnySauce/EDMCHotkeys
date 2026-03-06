@@ -1,11 +1,11 @@
 # GNOME Wayland Bridge Prototype Plan
 
 Status: Completed  
-Owner: EDMC-Hotkeys  
+Owner: EDMCHotkeys  
 Last Updated: 2026-02-26
 
 ## Goal
-Prototype an optional companion-style backend for GNOME Wayland that accepts externally emitted hotkey events (from a GNOME extension/bridge process) and dispatches registered binding IDs inside EDMC-Hotkeys.
+Prototype an optional companion-style backend for GNOME Wayland that accepts externally emitted hotkey events (from a GNOME extension/bridge process) and dispatches registered binding IDs inside EDMCHotkeys.
 
 ## Non-Goals
 - No GNOME extension implementation in this phase.

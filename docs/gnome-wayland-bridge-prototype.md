@@ -99,7 +99,7 @@ Default companion config path:
 - `~/.config/edmc-hotkeys/companion-bindings.json`
 
 Compatibility/support matrix:
-- [gnome-companion-compatibility-matrix.md](/home/jon/edmc_plugins/EDMCHotkeys/docs/gnome-companion-compatibility-matrix.md)
+- [gnome-companion-compatibility-matrix.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/gnome-companion-compatibility-matrix.md)
 Phase 4 QA evidence:
-- [GNOME_WAYLAND_BRIDGE_PHASE4_QA_MATRIX.md](/home/jon/edmc_plugins/EDMCHotkeys/docs/qa/GNOME_WAYLAND_BRIDGE_PHASE4_QA_MATRIX.md)
+- [GNOME_WAYLAND_BRIDGE_PHASE4_QA_MATRIX.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/qa/GNOME_WAYLAND_BRIDGE_PHASE4_QA_MATRIX.md)
 

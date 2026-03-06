@@ -21,7 +21,7 @@ export class HelperBridge {
             "sender.token",
         ]);
         this._senderId = params.senderId || "gnome-bridge-extension";
-        this._loggerPrefix = params.loggerPrefix || "[EDMC-Hotkeys-Companion]";
+        this._loggerPrefix = params.loggerPrefix || "[EDMCHotkeys-Companion]";
     }
 
     sendActivate(bindingId) {

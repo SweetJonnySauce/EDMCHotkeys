@@ -16,7 +16,7 @@ if something is not clear, ask clarifying questions
 ## Phase 2 — Core Plugin Skeleton (Status: Completed)
 | Stage | Description | Status |
 | --- | --- | --- |
-| 2.1 | Internal action registry module in EDMC-Hotkeys | Completed |
+| 2.1 | Internal action registry module in EDMCHotkeys | Completed |
 | 2.2 | Hotkey plugin scaffolding + logging | Completed |
 | 2.3 | Dispatch pipeline (main-thread default) | Completed |
 | 2.4 | Unit tests for registry + dispatch added alongside implementation | Completed |
@@ -191,7 +191,7 @@ if something is not clear, ask clarifying questions
 - Documented `bindings.json` storage schema and profile handling for v1 bindings.
 
 ## Phase 2 — Core Plugin Skeleton
-- Added a single EDMC plugin entrypoint at `load.py` for `EDMC-Hotkeys`, with logger wiring and lifecycle hooks.
+- Added a single EDMC plugin entrypoint at `load.py` for `EDMCHotkeys`, with logger wiring and lifecycle hooks.
 - Implemented internal action registry module under `edmc_hotkeys`, exposing register/list/get/invoke via the single plugin entrypoint.
 - Implemented dispatch pipeline with queued main-thread marshalling by default and optional worker dispatch for actions with `thread_policy="worker"`.
 - Added unit tests for registry registration rules, dispatch routing, main-thread marshalling/timeout behavior, missing/disabled action handling, callback exception handling, and hotkey plugin dispatch behavior.

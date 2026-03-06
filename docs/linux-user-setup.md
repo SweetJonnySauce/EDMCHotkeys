@@ -25,6 +25,9 @@ Scope:
 - This section is for Wayland environments where the portal GlobalShortcuts path works (for example KDE and other non-GNOME desktops with portal support).
 - On GNOME Wayland, use **GNOME Wayland Bridge Setup** below instead of this portal-only path.
 
+Status:
+- Validation status: not yet validated by project maintainers for non-GNOME Wayland portal environments.
+
 1. Ensure `xdg-desktop-portal` is running in the user session:
    ```bash
    systemctl --user status xdg-desktop-portal
@@ -52,6 +55,10 @@ Expected result with current implementation:
 
 ### GNOME Wayland Bridge Setup (Portal Fallback Path)
 Use this when GNOME Wayland does not expose `org.freedesktop.portal.GlobalShortcuts`.
+
+Status:
+- Validation status: validated for GNOME Wayland bridge coverage.
+- See matrix: `docs/gnome-companion-compatibility-matrix.md`
 
 1. Start EDMC with bridge mode enabled:
    - `EDMC_HOTKEYS_BACKEND_MODE=wayland_gnome_bridge EDMC_HOTKEYS_GNOME_BRIDGE=1 EDMarketConnector`
@@ -85,13 +92,13 @@ Use this when validating the extension -> helper -> plugin bridge architecture.
    - `./scripts/uninstall_gnome_bridge_companion.sh`
 
 Companion compatibility matrix:
-- [gnome-companion-compatibility-matrix.md](/home/jon/edmc_plugins/EDMCHotkeys/docs/gnome-companion-compatibility-matrix.md)
+- [gnome-companion-compatibility-matrix.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/gnome-companion-compatibility-matrix.md)
 Companion QA matrix:
-- [GNOME_WAYLAND_BRIDGE_PHASE4_QA_MATRIX.md](/home/jon/edmc_plugins/EDMCHotkeys/docs/qa/GNOME_WAYLAND_BRIDGE_PHASE4_QA_MATRIX.md)
+- [GNOME_WAYLAND_BRIDGE_PHASE4_QA_MATRIX.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/qa/GNOME_WAYLAND_BRIDGE_PHASE4_QA_MATRIX.md)
 Phase 5 rollout artifacts:
-- [GNOME_WAYLAND_BRIDGE_ALPHA_ROLLOUT_CHECKLIST.md](/home/jon/edmc_plugins/EDMCHotkeys/docs/release/GNOME_WAYLAND_BRIDGE_ALPHA_ROLLOUT_CHECKLIST.md)
-- [GNOME_WAYLAND_BRIDGE_ISSUE_TRIAGE_TEMPLATE.md](/home/jon/edmc_plugins/EDMCHotkeys/docs/release/GNOME_WAYLAND_BRIDGE_ISSUE_TRIAGE_TEMPLATE.md)
-- [GNOME_WAYLAND_BRIDGE_GA_DECISION_RECORD.md](/home/jon/edmc_plugins/EDMCHotkeys/docs/release/GNOME_WAYLAND_BRIDGE_GA_DECISION_RECORD.md)
+- [GNOME_WAYLAND_BRIDGE_ALPHA_ROLLOUT_CHECKLIST.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/release/GNOME_WAYLAND_BRIDGE_ALPHA_ROLLOUT_CHECKLIST.md)
+- [GNOME_WAYLAND_BRIDGE_ISSUE_TRIAGE_TEMPLATE.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/release/GNOME_WAYLAND_BRIDGE_ISSUE_TRIAGE_TEMPLATE.md)
+- [GNOME_WAYLAND_BRIDGE_GA_DECISION_RECORD.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/release/GNOME_WAYLAND_BRIDGE_GA_DECISION_RECORD.md)
 
 ### Tier 1 Modifier Guidance (Wayland)
 - Tier 1 (Wayland portal/bridge) supports:
