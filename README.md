@@ -1,4 +1,4 @@
-# EDMCHotkeys - PREVIEW VERSION
+# EDMCHotkeys
 
 Global hotkeys plugin for EDMarketConnector with Windows, Linux X11, and Linux Wayland backends.
 
