@@ -7,7 +7,21 @@ import pytest
 
 import edmc_hotkeys.settings_ui as settings_ui
 from edmc_hotkeys.settings_state import ActionOption
-from edmc_hotkeys.settings_ui import hotkey_from_event, hotkey_from_parts
+from edmc_hotkeys.settings_ui import (
+    KEYD_ALERT_STATE_AUTO_HINT,
+    KEYD_ALERT_STATE_EXPORT_REQUIRED,
+    KEYD_ALERT_STATE_INACTIVE,
+    KEYD_ALERT_STATE_INTEGRATION_MISSING,
+    KEYD_ALERT_STATE_KEYD_MISSING,
+    KEYD_ALERT_STATE_READY,
+    KeydAlertAction,
+    KeydAlertActionOutcome,
+    KeydAlertViewModel,
+    build_keyd_copy_commands,
+    hotkey_from_event,
+    hotkey_from_parts,
+    keyd_alert_view_for_state,
+)
 
 
 def _set_platform(monkeypatch: pytest.MonkeyPatch, *, is_windows: bool) -> None:
@@ -64,6 +78,25 @@ class _DummyCombo:
                 self.values = value
             else:
                 self.values = tuple(value)
+
+
+class _DummyGridWidget:
+    def __init__(self) -> None:
+        self.visible = False
+
+    def grid(self, **_kwargs) -> None:
+        self.visible = True
+
+    def grid_remove(self) -> None:
+        self.visible = False
+
+
+class _DummyLogger:
+    def __init__(self) -> None:
+        self.debug_calls: list[str] = []
+
+    def debug(self, message: str, **_kwargs: object) -> None:
+        self.debug_calls.append(message)
 
 
 def _action_option(
@@ -328,6 +361,70 @@ def test_capture_hotkey_does_not_warn_on_linux_parity_path(
     assert "Ambiguous Windows modifier state during hotkey capture" not in caplog.text
 
 
+def test_capture_hotkey_allows_plain_text_editing_without_modifiers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _set_platform(monkeypatch, is_windows=False)
+    logger = logging.getLogger("tests.settings_ui.manual_text_edit")
+    panel = _build_panel(logger=logger, supports_side_specific_modifiers=True)
+    hotkey_var = _DummyVar()
+    widget = object()
+    event = SimpleNamespace(keysym="x", char="x", state=0x0000)
+
+    result = panel._capture_hotkey(event, hotkey_var, widget)
+
+    assert result is None
+    assert hotkey_var.value is None
+
+
+def test_capture_hotkey_still_captures_special_keys_without_modifiers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _set_platform(monkeypatch, is_windows=False)
+    logger = logging.getLogger("tests.settings_ui.special_capture")
+    panel = _build_panel(logger=logger, supports_side_specific_modifiers=True)
+    hotkey_var = _DummyVar()
+    widget = object()
+    event = SimpleNamespace(keysym="F2", char="", state=0x0000)
+
+    result = panel._capture_hotkey(event, hotkey_var, widget)
+
+    assert result == "break"
+    assert hotkey_var.value == "F2"
+
+
+def test_capture_hotkey_allows_plain_text_editing_with_shift_only_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _set_platform(monkeypatch, is_windows=False)
+    logger = logging.getLogger("tests.settings_ui.shift_text_edit")
+    panel = _build_panel(logger=logger, supports_side_specific_modifiers=True)
+    hotkey_var = _DummyVar()
+    widget = object()
+    event = SimpleNamespace(keysym="plus", char="+", state=0x0001)
+
+    result = panel._capture_hotkey(event, hotkey_var, widget)
+
+    assert result is None
+    assert hotkey_var.value is None
+
+
+def test_capture_hotkey_still_captures_shift_modified_non_text_keys(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _set_platform(monkeypatch, is_windows=False)
+    logger = logging.getLogger("tests.settings_ui.shift_function_capture")
+    panel = _build_panel(logger=logger, supports_side_specific_modifiers=True)
+    hotkey_var = _DummyVar()
+    widget = object()
+    event = SimpleNamespace(keysym="F2", char="", state=0x0001)
+
+    result = panel._capture_hotkey(event, hotkey_var, widget)
+
+    assert result == "break"
+    assert hotkey_var.value == "LShift+F2"
+
+
 def test_action_dropdown_empty_when_plugin_unset() -> None:
     row = _row_for_dropdown(plugin="", action="", payload="")
     panel = _build_dropdown_panel(
@@ -347,7 +444,7 @@ def test_settings_columns_match_requested_order() -> None:
         "Action",
         "Payload",
         "Enabled",
-        "Removed",
+        "",
     ]
 
 
@@ -612,3 +709,209 @@ def test_action_dropdown_initial_render_applies_filtering() -> None:
 
     assert row_one.action_combo.values == ("alpha.one", "alpha.two")
     assert row_two.action_combo.values == ("alpha.two",)
+
+
+def test_build_keyd_copy_commands_integration_missing_on_systemd_includes_restart() -> None:
+    block = build_keyd_copy_commands(
+        state=KEYD_ALERT_STATE_INTEGRATION_MISSING,
+        install_command="sudo install helper",
+        apply_command="sudo install config",
+        systemd_available=True,
+    )
+    assert block == "sudo install helper\nsudo install config\nsudo systemctl restart keyd"
+
+
+def test_build_keyd_copy_commands_non_systemd_adds_manual_restart_instruction() -> None:
+    block = build_keyd_copy_commands(
+        state=KEYD_ALERT_STATE_EXPORT_REQUIRED,
+        install_command="unused",
+        apply_command="sudo install config",
+        systemd_available=False,
+    )
+    assert block == "sudo install config\n# Restart keyd manually for your init system."
+
+
+def test_build_keyd_copy_commands_does_not_duplicate_restart_step() -> None:
+    block = build_keyd_copy_commands(
+        state=KEYD_ALERT_STATE_EXPORT_REQUIRED,
+        install_command="unused",
+        apply_command="sudo install config && sudo systemctl restart keyd",
+        systemd_available=True,
+    )
+    assert block == "sudo install config && sudo systemctl restart keyd"
+
+
+def test_keyd_alert_view_for_state_integration_missing_wires_actions_and_warnings() -> None:
+    view = keyd_alert_view_for_state(
+        KEYD_ALERT_STATE_INTEGRATION_MISSING,
+        install_command="sudo install helper",
+        apply_command="sudo install config",
+        systemd_available=True,
+        on_install=lambda: KeydAlertActionOutcome(success_message="ok"),
+    )
+    assert view.visible is True
+    assert view.primary_action is not None
+    assert view.primary_action.label == "Install Integration"
+    assert view.show_copy_button is True
+    assert "sudo systemctl restart keyd" in view.copy_commands
+    assert view.show_privilege_warning is True
+    assert view.show_terminal_warning is True
+
+
+def test_format_keyd_warning_text_uses_primary_action_label() -> None:
+    panel = settings_ui.SettingsPanel.__new__(settings_ui.SettingsPanel)
+    alert = KeydAlertViewModel(
+        state=KEYD_ALERT_STATE_INTEGRATION_MISSING,
+        primary_action=KeydAlertAction(label="Install Integration", callback=lambda: None),
+        show_privilege_warning=True,
+        show_terminal_warning=True,
+    )
+
+    warning_text = panel._format_keyd_warning_text(alert)
+
+    assert "Warning: Integration requires elevated privileges (sudo)." in warning_text
+    assert "Warning: Install Integration opens a terminal/auth prompt." in warning_text
+
+
+def test_keyd_alert_view_for_state_keyd_missing_uses_restart_install_summary() -> None:
+    view = keyd_alert_view_for_state(KEYD_ALERT_STATE_KEYD_MISSING)
+    assert view.summary == "Install keyd and restart EDMC."
+    assert "not installed or not active" in view.body
+    assert view.visible is True
+
+
+def test_keyd_alert_view_for_state_auto_hint_uses_approved_text() -> None:
+    view = keyd_alert_view_for_state(KEYD_ALERT_STATE_AUTO_HINT)
+    assert view.summary == "Keyd is not active."
+    assert "Wayland auto mode" in view.body
+    assert "restart EDMC" in view.body
+    assert view.visible is True
+
+
+def test_keyd_alert_view_for_state_ready_and_inactive_are_hidden() -> None:
+    inactive = keyd_alert_view_for_state(KEYD_ALERT_STATE_INACTIVE)
+    ready = keyd_alert_view_for_state(KEYD_ALERT_STATE_READY)
+    assert inactive.visible is False
+    assert ready.visible is False
+
+
+def test_keyd_primary_action_applies_outcome() -> None:
+    outcome = KeydAlertActionOutcome(success_message="done")
+    captured: list[KeydAlertActionOutcome | None] = []
+    panel = settings_ui.SettingsPanel.__new__(settings_ui.SettingsPanel)
+    panel._keyd_alert_model = KeydAlertViewModel(
+        state=KEYD_ALERT_STATE_EXPORT_REQUIRED,
+        primary_action=KeydAlertAction(label="Export Config", callback=lambda: outcome),
+    )
+    panel._apply_keyd_action_outcome = lambda result: captured.append(result)
+    panel._logger = logging.getLogger("tests.settings_ui.keyd_action")
+
+    panel._on_keyd_primary_action()
+
+    assert captured == [outcome]
+
+
+def test_keyd_primary_action_exception_surfaces_inline_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    panel = settings_ui.SettingsPanel.__new__(settings_ui.SettingsPanel)
+    panel._keyd_alert_model = KeydAlertViewModel(
+        state=KEYD_ALERT_STATE_EXPORT_REQUIRED,
+        primary_action=KeydAlertAction(
+            label="Export Config",
+            callback=lambda: (_ for _ in ()).throw(RuntimeError("boom")),
+        ),
+    )
+    panel._logger = logging.getLogger("tests.settings_ui.keyd_action_error")
+    captured: list[tuple[str, str]] = []
+    panel.show_keyd_alert_error = lambda summary, details="": captured.append((summary, details))
+
+    panel._on_keyd_primary_action()
+
+    assert captured
+    assert "Action failed" in captured[0][0]
+    assert "boom" in captured[0][1]
+
+
+def test_on_hotkey_commit_clears_modifiers_and_notifies_change_callback() -> None:
+    callback_calls: list[str] = []
+    panel = settings_ui.SettingsPanel.__new__(settings_ui.SettingsPanel)
+    panel._active_modifier_tokens = {"widget-1": {"ctrl": "ctrl_l"}}
+    panel._on_bindings_changed = lambda: callback_calls.append("changed")
+    panel._logger = _DummyLogger()
+
+    result = panel._on_hotkey_commit("widget-1")
+
+    assert result is None
+    assert "widget-1" not in panel._active_modifier_tokens
+    assert callback_calls == ["changed"]
+
+
+def test_notify_bindings_changed_logs_debug_on_callback_error() -> None:
+    panel = settings_ui.SettingsPanel.__new__(settings_ui.SettingsPanel)
+    panel._on_bindings_changed = lambda: (_ for _ in ()).throw(RuntimeError("boom"))
+    panel._logger = _DummyLogger()
+
+    panel._notify_bindings_changed()
+
+    assert panel._logger.debug_calls == ["Failed to process settings change callback"]
+
+
+def test_set_validation_issues_uses_hotkey_label_for_row_id() -> None:
+    panel = settings_ui.SettingsPanel.__new__(settings_ui.SettingsPanel)
+    panel._validation_var = _DummyVar()
+    panel._row_widgets = [
+        SimpleNamespace(
+            row_id_var=_DummyStringVar("binding_a"),
+            hotkey_var=_DummyStringVar("LCtrl+LShift+X"),
+        )
+    ]
+
+    panel.set_validation_issues(
+        [
+            settings_ui.ValidationIssue(
+                level="error",
+                row_id="binding_a",
+                field="hotkey",
+                message="Hotkey conflicts with 'binding_b'",
+            )
+        ]
+    )
+
+    assert panel._validation_var.value is not None
+    assert "LCtrl+LShift+X.hotkey" in panel._validation_var.value
+    assert "binding_a.hotkey" not in panel._validation_var.value
+
+
+def test_plugin_and_action_value_change_notifies_bindings_changed() -> None:
+    callback_calls: list[str] = []
+    row = _row_for_dropdown(plugin="alpha", action="", payload="")
+    row.action_display_to_id = {"Turn Overlay On": "alpha.one"}
+    row.action_display_var.set("Turn Overlay On")
+    row.action_id_var.set("")
+    panel = _build_dropdown_panel(
+        action_options=[_action_option("alpha.one", plugin="alpha", label="Turn Overlay On")],
+        rows=[row],
+    )
+    panel._on_bindings_changed = lambda: callback_calls.append("changed")
+
+    panel._on_plugin_value_changed(row)
+    panel._on_action_value_changed(row)
+
+    assert len(callback_calls) == 2
+
+
+def test_toggle_keyd_error_details_expands_and_collapses() -> None:
+    panel = settings_ui.SettingsPanel.__new__(settings_ui.SettingsPanel)
+    panel._keyd_alert_error_details_var = _DummyStringVar("traceback lines")
+    panel._keyd_error_details_label = _DummyGridWidget()
+    panel._keyd_alert_details_button_var = _DummyStringVar("Show details")
+    panel._keyd_details_expanded = False
+
+    panel._toggle_keyd_error_details()
+    assert panel._keyd_error_details_label.visible is True
+    assert panel._keyd_alert_details_button_var.get() == "Hide details"
+    assert panel._keyd_details_expanded is True
+
+    panel._toggle_keyd_error_details()
+    assert panel._keyd_error_details_label.visible is False
+    assert panel._keyd_alert_details_button_var.get() == "Show details"
+    assert panel._keyd_details_expanded is False

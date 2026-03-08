@@ -302,6 +302,7 @@ def test_select_backend_wayland_strategy() -> None:
         platform_name="linux",
         environ={"XDG_SESSION_TYPE": "wayland"},
         wayland_backend=wayland_backend,
+        keyd_health_checker=lambda: (False, "keyd not active"),
     )
     assert selected is wayland_backend
 
@@ -313,6 +314,7 @@ def test_select_backend_wayland_bridge_strategy_when_flag_enabled() -> None:
         platform_name="linux",
         environ={"XDG_SESSION_TYPE": "wayland", "EDMC_HOTKEYS_GNOME_BRIDGE": "1"},
         gnome_bridge_backend=bridge_backend,
+        keyd_health_checker=lambda: (False, "keyd not active"),
     )
     assert selected is bridge_backend
 
@@ -340,6 +342,7 @@ def test_select_backend_respects_explicit_wayland_bridge_mode() -> None:
         environ={"XDG_SESSION_TYPE": "wayland"},
         gnome_bridge_backend=bridge_backend,
         backend_mode_override="wayland_gnome_bridge",
+        keyd_health_checker=lambda: (False, "keyd not active"),
     )
     assert selected is bridge_backend
 
@@ -350,6 +353,7 @@ def test_select_backend_rejects_explicit_x11_mode_on_wayland() -> None:
         platform_name="linux",
         environ={"XDG_SESSION_TYPE": "wayland"},
         backend_mode_override="x11",
+        keyd_health_checker=lambda: (False, "keyd not active"),
     )
     assert isinstance(selected, NullHotkeyBackend)
     assert "requires an X11 session" in (selected.availability().reason or "")
@@ -362,6 +366,7 @@ def test_select_backend_x11_strategy() -> None:
         platform_name="linux",
         environ={"DISPLAY": ":0"},
         x11_backend=x11_backend,
+        keyd_health_checker=lambda: (False, "keyd not active"),
     )
     assert selected is x11_backend
 
@@ -371,9 +376,76 @@ def test_select_backend_unknown_linux_session_returns_null() -> None:
         logger=logging.getLogger("test.backends"),
         platform_name="linux",
         environ={},
+        keyd_health_checker=lambda: (False, "keyd not active"),
     )
     assert isinstance(selected, NullHotkeyBackend)
     assert selected.availability().available is False
+
+
+def test_select_backend_auto_prefers_keyd_when_healthy() -> None:
+    keyd_backend = _FakeBackend("wayland-keyd")
+    selected = select_backend(
+        logger=logging.getLogger("test.backends"),
+        platform_name="linux",
+        environ={"XDG_SESSION_TYPE": "wayland"},
+        keyd_backend=keyd_backend,
+        wayland_backend=_FakeBackend("wayland-portal"),
+        keyd_health_checker=lambda: (True, "keyd service active via systemctl"),
+    )
+    assert selected is keyd_backend
+
+
+def test_select_backend_auto_prefers_keyd_over_gnome_bridge_flag() -> None:
+    keyd_backend = _FakeBackend("wayland-keyd")
+    gnome_backend = _FakeBackend("gnome-bridge")
+    selected = select_backend(
+        logger=logging.getLogger("test.backends"),
+        platform_name="linux",
+        environ={"XDG_SESSION_TYPE": "wayland", "EDMC_HOTKEYS_GNOME_BRIDGE": "1"},
+        keyd_backend=keyd_backend,
+        gnome_bridge_backend=gnome_backend,
+        keyd_health_checker=lambda: (True, "keyd service active via systemctl"),
+    )
+    assert selected is keyd_backend
+
+
+def test_select_backend_auto_logs_selection_reason_for_keyd(caplog) -> None:
+    keyd_backend = _FakeBackend("wayland-keyd")
+    with caplog.at_level(logging.INFO):
+        selected = select_backend(
+            logger=logging.getLogger("test.backends"),
+            platform_name="linux",
+            environ={"XDG_SESSION_TYPE": "wayland"},
+            keyd_backend=keyd_backend,
+            keyd_health_checker=lambda: (True, "keyd service active via systemctl"),
+        )
+    assert selected is keyd_backend
+    assert "Auto backend selection: selected=wayland_keyd reason=keyd service active via systemctl" in caplog.text
+
+
+def test_select_backend_explicit_wayland_keyd_requires_keyd_health() -> None:
+    selected = select_backend(
+        logger=logging.getLogger("test.backends"),
+        platform_name="linux",
+        environ={"XDG_SESSION_TYPE": "wayland"},
+        backend_mode_override="wayland_keyd",
+        keyd_health_checker=lambda: (False, "keyd service not active"),
+    )
+    assert isinstance(selected, NullHotkeyBackend)
+    assert "requires keyd to be active" in (selected.availability().reason or "")
+
+
+def test_select_backend_wayland_portal_has_no_deprecation_warning(caplog) -> None:
+    with caplog.at_level(logging.INFO):
+        selected = select_backend(
+            logger=logging.getLogger("test.backends"),
+            platform_name="linux",
+            environ={"XDG_SESSION_TYPE": "wayland"},
+            wayland_backend=_FakeBackend("wayland-portal"),
+            keyd_health_checker=lambda: (False, "keyd not active"),
+        )
+    assert selected.name == "wayland-portal"
+    assert "deprecat" not in caplog.text.lower()
 
 
 def test_windows_backend_uses_client_when_available() -> None:

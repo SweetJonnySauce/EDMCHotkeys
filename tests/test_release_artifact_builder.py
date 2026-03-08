@@ -21,6 +21,7 @@ def _load_builder_module():
 
 def _seed_base_plugin_tree(root: Path) -> None:
     (root / "load.py").write_text("# plugin entrypoint\n", encoding="utf-8")
+    (root / "config.defaults.ini").write_text("[backend]\nmode = auto\n", encoding="utf-8")
     package_dir = root / "edmc_hotkeys"
     package_dir.mkdir(parents=True, exist_ok=True)
     (package_dir / "__init__.py").write_text("", encoding="utf-8")
@@ -36,9 +37,17 @@ def test_validate_version_patterns() -> None:
     assert not module.validate_version("v1.2.3-beta.1")
 
 
+def test_variant_matrix_uses_new_wayland_artifact_names() -> None:
+    module = _load_builder_module()
+    assert "linux-wayland" in module.VARIANT_SPECS
+    assert "linux-wayland-portal" in module.VARIANT_SPECS
+    assert "linux-wayland-gnome-bridge" in module.VARIANT_SPECS
+    assert "linux-wayland-gnome" not in module.VARIANT_SPECS
+
+
 def test_verify_tree_rejects_forbidden_path_for_wayland(tmp_path: Path) -> None:
     module = _load_builder_module()
-    spec = module.VARIANT_SPECS["linux-wayland"]
+    spec = module.VARIANT_SPECS["linux-wayland-portal"]
     root = tmp_path / "EDMCHotkeys"
     root.mkdir(parents=True, exist_ok=True)
     _seed_base_plugin_tree(root)
@@ -51,7 +60,7 @@ def test_verify_tree_rejects_forbidden_path_for_wayland(tmp_path: Path) -> None:
 
 def test_verify_tree_requires_companion_paths_for_wayland_gnome(tmp_path: Path) -> None:
     module = _load_builder_module()
-    spec = module.VARIANT_SPECS["linux-wayland-gnome"]
+    spec = module.VARIANT_SPECS["linux-wayland-gnome-bridge"]
     root = tmp_path / "EDMCHotkeys"
     root.mkdir(parents=True, exist_ok=True)
     _seed_base_plugin_tree(root)
@@ -94,3 +103,34 @@ def test_verify_tree_rejects_forbidden_path_for_windows(tmp_path: Path) -> None:
 
     with pytest.raises(module.ReleaseArtifactError):
         module.verify_tree(root, spec)
+
+
+def test_verify_tree_requires_keyd_scripts_for_linux_wayland(tmp_path: Path) -> None:
+    module = _load_builder_module()
+    spec = module.VARIANT_SPECS["linux-wayland"]
+    root = tmp_path / "EDMCHotkeys"
+    root.mkdir(parents=True, exist_ok=True)
+    _seed_base_plugin_tree(root)
+    (root / "dbus_next").mkdir()
+
+    scripts_dir = root / "scripts"
+    scripts_dir.mkdir()
+    (scripts_dir / "keyd_send.py").write_text("", encoding="utf-8")
+    (scripts_dir / "export_keyd_bindings.py").write_text("", encoding="utf-8")
+
+    with pytest.raises(module.ReleaseArtifactError):
+        module.verify_tree(root, spec)
+
+
+def test_generate_variant_config_defaults_filters_keyd_section(tmp_path: Path) -> None:
+    module = _load_builder_module()
+    root = tmp_path / "EDMCHotkeys"
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "config_template.ini").write_text(
+        "[backend]\nmode = auto\n\n[keyd]\ngenerated_path = keyd/runtime/keyd.generated.conf\n",
+        encoding="utf-8",
+    )
+    module._generate_variant_config_defaults(root, module.VARIANT_SPECS["linux-wayland-portal"])
+    text = (root / "config.defaults.ini").read_text(encoding="utf-8")
+    assert "mode = wayland_portal" in text
+    assert "[keyd]" not in text

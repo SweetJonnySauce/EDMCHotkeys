@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import configparser
 from dataclasses import dataclass
 import os
 from pathlib import Path
@@ -50,6 +51,7 @@ TREE_FORBIDDEN_NAMES = {
 ALWAYS_REQUIRED = (
     "load.py",
     "edmc_hotkeys",
+    "config.defaults.ini",
 )
 
 
@@ -69,6 +71,8 @@ class VariantSpec:
     forbidden_paths: tuple[str, ...]
     kept_scripts: tuple[str, ...]
     include_companion_setup_doc: bool
+    config_backend_mode: str
+    include_keyd_config: bool
 
 
 VARIANT_SPECS: dict[str, VariantSpec] = {
@@ -87,14 +91,60 @@ VARIANT_SPECS: dict[str, VariantSpec] = {
             "scripts/uninstall_gnome_bridge_companion.sh",
             "scripts/verify_gnome_bridge_companion.sh",
             "scripts/export_companion_bindings.py",
+            "scripts/keyd_send.py",
+            "scripts/export_keyd_bindings.py",
+            "scripts/install_keyd_integration.sh",
+            "scripts/verify_keyd_integration.sh",
+            "scripts/uninstall_keyd_integration.sh",
             "third_party_licenses/dbus-next.LICENSE",
+            "config_template.ini",
         ),
         kept_scripts=(),
         include_companion_setup_doc=False,
+        config_backend_mode="x11",
+        include_keyd_config=False,
     ),
     "linux-wayland": VariantSpec(
         variant="linux-wayland",
         artifact_suffix="linux-wayland",
+        vendor_script="scripts/vendor_dbus_next.sh",
+        archive_format="tar.gz",
+        required_paths=(
+            "dbus_next",
+            "scripts/keyd_send.py",
+            "scripts/export_keyd_bindings.py",
+            "scripts/install_keyd_integration.sh",
+            "scripts/verify_keyd_integration.sh",
+            "scripts/uninstall_keyd_integration.sh",
+        ),
+        forbidden_paths=(
+            "Xlib",
+            "six.py",
+            "companion",
+            "COMPANION_SETUP.md",
+            "scripts/gnome_bridge_send.py",
+            "scripts/install_gnome_bridge_companion.sh",
+            "scripts/uninstall_gnome_bridge_companion.sh",
+            "scripts/verify_gnome_bridge_companion.sh",
+            "scripts/export_companion_bindings.py",
+            "third_party_licenses/python-xlib.LICENSE",
+            "third_party_licenses/six.LICENSE",
+            "config_template.ini",
+        ),
+        kept_scripts=(
+            "scripts/keyd_send.py",
+            "scripts/export_keyd_bindings.py",
+            "scripts/install_keyd_integration.sh",
+            "scripts/verify_keyd_integration.sh",
+            "scripts/uninstall_keyd_integration.sh",
+        ),
+        include_companion_setup_doc=False,
+        config_backend_mode="auto",
+        include_keyd_config=True,
+    ),
+    "linux-wayland-portal": VariantSpec(
+        variant="linux-wayland-portal",
+        artifact_suffix="linux-wayland-portal",
         vendor_script="scripts/vendor_dbus_next.sh",
         archive_format="tar.gz",
         required_paths=("dbus_next",),
@@ -108,15 +158,23 @@ VARIANT_SPECS: dict[str, VariantSpec] = {
             "scripts/uninstall_gnome_bridge_companion.sh",
             "scripts/verify_gnome_bridge_companion.sh",
             "scripts/export_companion_bindings.py",
+            "scripts/keyd_send.py",
+            "scripts/export_keyd_bindings.py",
+            "scripts/install_keyd_integration.sh",
+            "scripts/verify_keyd_integration.sh",
+            "scripts/uninstall_keyd_integration.sh",
             "third_party_licenses/python-xlib.LICENSE",
             "third_party_licenses/six.LICENSE",
+            "config_template.ini",
         ),
         kept_scripts=(),
         include_companion_setup_doc=False,
+        config_backend_mode="wayland_portal",
+        include_keyd_config=False,
     ),
-    "linux-wayland-gnome": VariantSpec(
-        variant="linux-wayland-gnome",
-        artifact_suffix="linux-wayland-gnome",
+    "linux-wayland-gnome-bridge": VariantSpec(
+        variant="linux-wayland-gnome-bridge",
+        artifact_suffix="linux-wayland-gnome-bridge",
         vendor_script="scripts/vendor_dbus_next.sh",
         archive_format="tar.gz",
         required_paths=(
@@ -128,12 +186,18 @@ VARIANT_SPECS: dict[str, VariantSpec] = {
             "scripts/uninstall_gnome_bridge_companion.sh",
             "scripts/verify_gnome_bridge_companion.sh",
             "scripts/export_companion_bindings.py",
+            "scripts/keyd_send.py",
+            "scripts/export_keyd_bindings.py",
+            "scripts/install_keyd_integration.sh",
+            "scripts/verify_keyd_integration.sh",
+            "scripts/uninstall_keyd_integration.sh",
         ),
         forbidden_paths=(
             "Xlib",
             "six.py",
             "third_party_licenses/python-xlib.LICENSE",
             "third_party_licenses/six.LICENSE",
+            "config_template.ini",
         ),
         kept_scripts=(
             "scripts/gnome_bridge_send.py",
@@ -143,6 +207,8 @@ VARIANT_SPECS: dict[str, VariantSpec] = {
             "scripts/export_companion_bindings.py",
         ),
         include_companion_setup_doc=True,
+        config_backend_mode="wayland_gnome_bridge",
+        include_keyd_config=False,
     ),
     "windows": VariantSpec(
         variant="windows",
@@ -161,12 +227,20 @@ VARIANT_SPECS: dict[str, VariantSpec] = {
             "scripts/uninstall_gnome_bridge_companion.sh",
             "scripts/verify_gnome_bridge_companion.sh",
             "scripts/export_companion_bindings.py",
+            "scripts/keyd_send.py",
+            "scripts/export_keyd_bindings.py",
+            "scripts/install_keyd_integration.sh",
+            "scripts/verify_keyd_integration.sh",
+            "scripts/uninstall_keyd_integration.sh",
             "third_party_licenses/python-xlib.LICENSE",
             "third_party_licenses/six.LICENSE",
             "third_party_licenses/dbus-next.LICENSE",
+            "config_template.ini",
         ),
         kept_scripts=(),
         include_companion_setup_doc=False,
+        config_backend_mode="auto",
+        include_keyd_config=False,
     ),
 }
 
@@ -240,7 +314,31 @@ def _prune_python_caches(workspace_root: Path) -> None:
             pyc.unlink()
 
 
+def _generate_variant_config_defaults(workspace_root: Path, spec: VariantSpec) -> None:
+    template_path = workspace_root / "config_template.ini"
+    if not template_path.exists():
+        raise ReleaseArtifactError("missing config_template.ini in workspace")
+    parser = configparser.ConfigParser()
+    try:
+        parser.read(template_path, encoding="utf-8")
+    except Exception as exc:
+        raise ReleaseArtifactError(f"failed reading config_template.ini: {exc}") from exc
+
+    output = configparser.ConfigParser()
+    output["backend"] = {"mode": spec.config_backend_mode}
+    if spec.include_keyd_config and parser.has_section("keyd"):
+        output["keyd"] = {}
+        for key, value in parser.items("keyd"):
+            output["keyd"][key] = value
+
+    out_path = workspace_root / "config.defaults.ini"
+    with out_path.open("w", encoding="utf-8") as handle:
+        handle.write("# Auto-generated by scripts/build_release_artifact.py\n")
+        output.write(handle)
+
+
 def apply_variant_policy(workspace_root: Path, spec: VariantSpec) -> None:
+    _generate_variant_config_defaults(workspace_root, spec)
     for relpath in GLOBAL_EXCLUDES:
         _remove_path(workspace_root, relpath)
     for relpath in spec.forbidden_paths:

@@ -367,3 +367,5 @@ if something is not clear, ask clarifying questions
   - `source .venv/bin/activate && python -m pytest` passed (`79 passed`).
 - Source of truth:
   - detailed stage plan + completion summary in `docs/plans/CROSS_PLATFORM_COMPLEXITY_MINIMIZATION_SPEC.md` sections `11.5` and `11.6`.
+
+
