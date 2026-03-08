@@ -10,9 +10,7 @@ from edmc_hotkeys.backends.base import (
     as_runtime_status_backend,
     backend_contract_issues,
 )
-from edmc_hotkeys.backends.gnome_bridge import GnomeWaylandBridgeBackend
 from edmc_hotkeys.backends.wayland_keyd import WaylandKeydBackend
-from edmc_hotkeys.backends.wayland import WaylandPortalBackend
 from edmc_hotkeys.backends.windows import WindowsHotkeyBackend
 from edmc_hotkeys.backends.x11 import X11HotkeyBackend
 
@@ -87,7 +85,6 @@ def test_contract_issues_accept_supported_backends() -> None:
     plugin_dir = tempfile.TemporaryDirectory(prefix="edmc_hotkeys_contract_keyd_")
     backends = [
         NullHotkeyBackend(reason="disabled"),
-        WaylandPortalBackend(logger=logging.getLogger("test.contract"), platform_name="linux"),
         WaylandKeydBackend(
             logger=logging.getLogger("test.contract"),
             platform_name="linux",
@@ -95,12 +92,6 @@ def test_contract_issues_accept_supported_backends() -> None:
             plugin_dir=Path(plugin_dir.name),
             socket_path=socket_path + ".keyd.sock",
             token_file_path=socket_path + ".keyd.token",
-        ),
-        GnomeWaylandBridgeBackend(
-            logger=logging.getLogger("test.contract"),
-            platform_name="linux",
-            environ={"WAYLAND_DISPLAY": "wayland-0", "EDMC_HOTKEYS_GNOME_BRIDGE": "1"},
-            socket_path=socket_path,
         ),
         X11HotkeyBackend(logger=logging.getLogger("test.contract"), platform_name="linux"),
         WindowsHotkeyBackend(

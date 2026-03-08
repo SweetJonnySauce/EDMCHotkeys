@@ -90,8 +90,7 @@ Implementation note:
 | --- | --- | --- |
 | Windows | Supported | `LCtrl`/`RCtrl` style bindings supported. |
 | Linux X11 | Supported | Side-specific and generic modifiers supported. |
-| Wayland Portal | Not supported | Use generic modifiers (`Ctrl`, `Alt`, `Shift`, `Win`). |
-| Wayland GNOME bridge | Not supported | Use generic modifiers; side-specific bindings are auto-disabled. |
+| Linux Wayland keyd | Supported | Side-specific and generic modifiers supported. |
 
 ### Return/Failure Semantics
 - Missing action ID: warning + `False`.

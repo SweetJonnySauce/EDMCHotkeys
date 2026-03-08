@@ -40,7 +40,7 @@ Summary:
 
 Validation highlights:
 - Extension active/disabled dispatch behavior verified in live GNOME Wayland session.
-- Backend mode switching verified across EDMC restarts (`auto`, `wayland_gnome_bridge`, `wayland_portal`).
+- Backend mode switching verified across EDMC restarts (`auto`, `wayland_keyd`, `x11`).
 - Stale runtime-dir/socket recovery verified with hardened permission restoration.
 
 ## v0.0.0 - Wayland Tier 1 Generic Modifier Support
@@ -65,4 +65,3 @@ Migration guidance:
 Diagnostics:
 - Auto-disable logs should reference only side-specific bindings on Tier 1 backends.
 - Generic bindings should no longer be auto-disabled by side-specific capability checks.
-

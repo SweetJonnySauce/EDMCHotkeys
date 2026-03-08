@@ -93,7 +93,7 @@ def test_build_keyd_alert_model_returns_auto_hint_when_auto_mode_wayland_missing
     monkeypatch,
     tmp_path: Path,
 ) -> None:
-    fake_plugin = _FakePlugin(backend_name="linux-wayland-portal", plugin_dir=tmp_path)
+    fake_plugin = _FakePlugin(backend_name="inactive", plugin_dir=tmp_path)
     config = _runtime_config()
     config = RuntimeConfig(
         backend_mode="auto",
@@ -138,7 +138,7 @@ def test_build_keyd_alert_model_returns_restart_hint_when_auto_mode_has_non_keyd
     monkeypatch,
     tmp_path: Path,
 ) -> None:
-    fake_plugin = _FakePlugin(backend_name="linux-wayland-portal", plugin_dir=tmp_path)
+    fake_plugin = _FakePlugin(backend_name="inactive", plugin_dir=tmp_path)
     config = _runtime_config()
     monkeypatch.setattr(plugin_load, "_plugin", fake_plugin)
     monkeypatch.setattr(plugin_load, "_runtime_config", config)

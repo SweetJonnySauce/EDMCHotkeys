@@ -39,40 +39,23 @@ def test_validate_version_patterns() -> None:
 
 def test_variant_matrix_uses_new_wayland_artifact_names() -> None:
     module = _load_builder_module()
-    assert "linux-wayland" in module.VARIANT_SPECS
-    assert "linux-wayland-portal" in module.VARIANT_SPECS
-    assert "linux-wayland-gnome-bridge" in module.VARIANT_SPECS
-    assert "linux-wayland-gnome" not in module.VARIANT_SPECS
+    assert set(module.VARIANT_SPECS.keys()) == {"linux-x11", "linux-wayland", "windows"}
 
 
 def test_verify_tree_rejects_forbidden_path_for_wayland(tmp_path: Path) -> None:
     module = _load_builder_module()
-    spec = module.VARIANT_SPECS["linux-wayland-portal"]
+    spec = module.VARIANT_SPECS["linux-wayland"]
     root = tmp_path / "EDMCHotkeys"
     root.mkdir(parents=True, exist_ok=True)
     _seed_base_plugin_tree(root)
-    (root / "dbus_next").mkdir()
-    (root / "companion").mkdir()
-
-    with pytest.raises(module.ReleaseArtifactError):
-        module.verify_tree(root, spec)
-
-
-def test_verify_tree_requires_companion_paths_for_wayland_gnome(tmp_path: Path) -> None:
-    module = _load_builder_module()
-    spec = module.VARIANT_SPECS["linux-wayland-gnome-bridge"]
-    root = tmp_path / "EDMCHotkeys"
-    root.mkdir(parents=True, exist_ok=True)
-    _seed_base_plugin_tree(root)
-    (root / "dbus_next").mkdir()
-
     scripts_dir = root / "scripts"
     scripts_dir.mkdir()
-    (scripts_dir / "gnome_bridge_send.py").write_text("", encoding="utf-8")
-    (scripts_dir / "install_gnome_bridge_companion.sh").write_text("", encoding="utf-8")
-    (scripts_dir / "uninstall_gnome_bridge_companion.sh").write_text("", encoding="utf-8")
-    (scripts_dir / "verify_gnome_bridge_companion.sh").write_text("", encoding="utf-8")
-    (scripts_dir / "export_companion_bindings.py").write_text("", encoding="utf-8")
+    (scripts_dir / "keyd_send.py").write_text("", encoding="utf-8")
+    (scripts_dir / "export_keyd_bindings.py").write_text("", encoding="utf-8")
+    (scripts_dir / "install_keyd_integration.sh").write_text("", encoding="utf-8")
+    (scripts_dir / "verify_keyd_integration.sh").write_text("", encoding="utf-8")
+    (scripts_dir / "uninstall_keyd_integration.sh").write_text("", encoding="utf-8")
+    (root / "dbus_next").mkdir()
 
     with pytest.raises(module.ReleaseArtifactError):
         module.verify_tree(root, spec)
@@ -130,7 +113,7 @@ def test_generate_variant_config_defaults_filters_keyd_section(tmp_path: Path) -
         "[backend]\nmode = auto\n\n[keyd]\ngenerated_path = keyd/runtime/keyd.generated.conf\n",
         encoding="utf-8",
     )
-    module._generate_variant_config_defaults(root, module.VARIANT_SPECS["linux-wayland-portal"])
+    module._generate_variant_config_defaults(root, module.VARIANT_SPECS["windows"])
     text = (root / "config.defaults.ini").read_text(encoding="utf-8")
-    assert "mode = wayland_portal" in text
+    assert "mode = auto" in text
     assert "[keyd]" not in text

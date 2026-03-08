@@ -23,16 +23,16 @@ def _write_defaults(path: Path, *, mode: str = "auto") -> None:
 
 def test_load_runtime_config_creates_user_config_from_defaults(tmp_path: Path) -> None:
     defaults = tmp_path / "config.defaults.ini"
-    _write_defaults(defaults, mode="wayland_portal")
+    _write_defaults(defaults, mode="wayland_keyd")
     config, sources = load_runtime_config(plugin_dir=tmp_path, environ={})
-    assert config.backend_mode == "wayland_portal"
+    assert config.backend_mode == "wayland_keyd"
     assert (tmp_path / USER_CONFIG_PATH).exists()
     assert sources["backend_mode"] in {"config.ini", "config.defaults.ini"}
 
 
 def test_load_runtime_config_precedence_env_over_user_and_defaults(tmp_path: Path) -> None:
-    _write_defaults(tmp_path / "config.defaults.ini", mode="wayland_portal")
-    (tmp_path / "config.ini").write_text("[backend]\nmode = wayland_gnome_bridge\n", encoding="utf-8")
+    _write_defaults(tmp_path / "config.defaults.ini", mode="x11")
+    (tmp_path / "config.ini").write_text("[backend]\nmode = x11\n", encoding="utf-8")
     config, sources = load_runtime_config(
         plugin_dir=tmp_path,
         environ={"EDMC_HOTKEYS_BACKEND_MODE": "wayland_keyd"},

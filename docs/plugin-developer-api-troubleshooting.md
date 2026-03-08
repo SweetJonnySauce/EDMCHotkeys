@@ -12,7 +12,7 @@ Reference docs:
 2. `register_action(...)` returns `False`.
 3. `invoke_action(...)` returns `False`.
 4. `list_bindings(plugin_name)` returns empty unexpectedly.
-5. Side-specific binding works on Windows/X11 but not on Wayland.
+5. Side-specific binding works on Windows/X11 but not on Linux Wayland keyd.
 6. Main-thread dispatch timeout warnings appear.
 7. Backend unavailable warnings at startup.
 
@@ -83,18 +83,16 @@ Remediation:
 - pass non-empty plugin name
 - align plugin owner names used in bindings and registration
 
-### 5. Side-specific binding fails on Wayland
+### 5. Side-specific binding fails on Linux Wayland keyd
 Likely causes:
-- Wayland portal/bridge does not support side-specific modifiers
+- backend is not actually `linux-wayland-keyd`
 
 Checks:
-- confirm backend path is Wayland portal or GNOME bridge
-- check logs for auto-disable messages for side-specific rows
+- confirm backend path is `linux-wayland-keyd`
+- check keyd integration/export state in settings
 
 Remediation:
-- convert side-specific modifiers to generic modifiers on Wayland:
-  - `LCtrl+LShift+F1` -> `Ctrl+Shift+F1`
-  - `RCtrl+M` -> `Ctrl+M`
+- ensure keyd integration is installed/applied and service is active
 
 ### 6. Main-thread dispatch timeout warnings
 Likely causes:
@@ -111,9 +109,9 @@ Remediation:
 
 ### 7. Backend unavailable at startup
 Likely causes:
-- missing platform prerequisites (for example `dbus-next`, `python-xlib`, session env)
+- missing platform prerequisites (for example `python-xlib`, keyd service, session env)
 - unsupported session mode for forced backend mode
-- GNOME bridge flags/setup not enabled
+- keyd not installed or not active on Wayland
 
 Checks:
 - inspect backend selection/unavailability log lines
@@ -125,7 +123,7 @@ Checks:
 Remediation:
 - install required backend dependency bundle
 - run matching backend mode for active session
-- for GNOME bridge: enable required env flags and companion setup
+- for Wayland keyd: install/apply keyd integration and restart EDMC
 
 ## Useful Log Query
 ```bash

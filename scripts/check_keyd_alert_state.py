@@ -41,14 +41,10 @@ def main() -> int:
 
     if mode == "wayland_keyd":
         selected = "linux-wayland-keyd"
-    elif mode == "wayland_portal":
-        selected = "linux-wayland-portal"
-    elif mode == "wayland_gnome_bridge":
-        selected = "linux-wayland-gnome-bridge"
     elif mode == "x11":
         selected = "linux-x11"
     elif mode == "auto" and session == "wayland":
-        selected = "linux-wayland-keyd" if keyd.available else "linux-wayland-portal"
+        selected = "linux-wayland-keyd" if keyd.available else "inactive"
     else:
         selected = "inactive"
 

@@ -118,10 +118,7 @@ UI safety:
 | --- | --- |
 | Windows | Supported |
 | Linux X11 | Supported |
-| Wayland Portal | Not supported |
-| Wayland GNOME bridge | Not supported |
-
-On non-side-specific backends, side-specific bindings are auto-disabled with diagnostics.
+| Linux Wayland keyd | Supported |
 
 ## Failure Semantics Matrix
 | Condition | Typical return | Notes |

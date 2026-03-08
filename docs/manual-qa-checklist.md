@@ -94,17 +94,14 @@ Fail criteria:
 
 ### Linux Wayland
 1. Run under Wayland (`WAYLAND_DISPLAY` present).
-2. Confirm backend `linux-wayland-portal` is selected.
-3. If portal prerequisites are available (`xdg-desktop-portal` + `dbus-next`), confirm registration/dispatch works.
-4. If prerequisites are missing, confirm hotkeys are disabled with explicit warning (not a crash).
-5. Validate Tier 1 modifier policy with representative bindings:
+2. Confirm backend `linux-wayland-keyd` is selected.
+3. If keyd is active and integration is installed, confirm registration/dispatch works.
+4. If keyd is unavailable, confirm hotkeys are disabled with explicit warning (not a crash).
+5. Validate side-specific modifier behavior with representative bindings:
    - generic binding (for example `Ctrl+Shift+F1`) stays enabled
-   - side-specific binding (for example `LCtrl+LShift+F1`) is auto-disabled
+   - side-specific binding (for example `LCtrl+LShift+F1`) stays enabled
    - mixed-family binding (for example `Ctrl+LCtrl+F1`) is rejected by validation
-6. Confirm disable diagnostics only reference side-specific bindings and do not mention generic bindings.
-7. In settings hotkey capture, verify Linux side-specific default inference is unchanged:
-   - entering a key with state-only modifier bits can still produce side-specific defaults.
-8. Confirm no Windows-specific ambiguity warning appears for Linux capture interactions:
+6. Confirm no Windows-specific ambiguity warning appears for Linux capture interactions:
    - `Ambiguous Windows modifier state during hotkey capture`
 
 ### Windows
@@ -140,4 +137,3 @@ Fail criteria:
   - global hotkey delivery while Elite Dangerous has focus.
   - compositor/session-specific backend startup behavior.
   - real shutdown lifecycle behavior across UI state transitions.
-

@@ -12,7 +12,7 @@ class _NoSideSpecificPlugin:
         return BackendCapabilities(supports_side_specific_modifiers=False)
 
     def backend_name(self) -> str:
-        return "linux-wayland-portal"
+        return "linux-wayland-keyd"
 
 
 def test_hotkey_parser_accepts_canonical_and_pretty_side_specific_forms() -> None:

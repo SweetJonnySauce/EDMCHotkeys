@@ -11,20 +11,12 @@ import sys
 from typing import Callable, Mapping, Optional
 
 from .base import HotkeyBackend, NullHotkeyBackend
-from .gnome_bridge import GnomeWaylandBridgeBackend
 from .wayland_keyd import WaylandKeydBackend
-from .wayland import WaylandPortalBackend
 from .windows import WindowsHotkeyBackend
 from .x11 import X11HotkeyBackend
 
 _BACKEND_MODE_ENV = "EDMC_HOTKEYS_BACKEND_MODE"
-_VALID_BACKEND_MODES = {"auto", "wayland_keyd", "wayland_portal", "wayland_gnome_bridge", "x11"}
-
-
-def gnome_bridge_enabled(environ: Mapping[str, str]) -> bool:
-    """Return True when prototype GNOME bridge backend is explicitly enabled."""
-    value = environ.get("EDMC_HOTKEYS_GNOME_BRIDGE", "")
-    return value.strip().lower() in {"1", "true", "yes", "on"}
+_VALID_BACKEND_MODES = {"auto", "wayland_keyd", "x11"}
 
 
 def backend_mode(environ: Mapping[str, str], *, default: str = "auto") -> str:
@@ -57,8 +49,6 @@ def select_backend(
     windows_backend: Optional[HotkeyBackend] = None,
     x11_backend: Optional[HotkeyBackend] = None,
     keyd_backend: Optional[HotkeyBackend] = None,
-    wayland_backend: Optional[HotkeyBackend] = None,
-    gnome_bridge_backend: Optional[HotkeyBackend] = None,
     backend_mode_override: Optional[str] = None,
     keyd_health_checker: Optional[Callable[[], tuple[bool, str]]] = None,
 ) -> HotkeyBackend:
@@ -86,8 +76,6 @@ def select_backend(
                 environ=env,
                 x11_backend=x11_backend,
                 keyd_backend=keyd_backend,
-                wayland_backend=wayland_backend,
-                gnome_bridge_backend=gnome_bridge_backend,
                 keyd_health_checker=keyd_health_checker,
             )
         if session == "wayland":
@@ -100,21 +88,14 @@ def select_backend(
                     environ=env,
                     plugin_dir=resolved_plugin_dir,
                 )
-            if gnome_bridge_enabled(env):
-                log.info(
-                    "Auto backend selection: selected=wayland_gnome_bridge reason=%s",
-                    f"keyd unavailable ({reason}); EDMC_HOTKEYS_GNOME_BRIDGE enabled",
-                )
-                return gnome_bridge_backend or GnomeWaylandBridgeBackend(
-                    logger=log,
-                    platform_name=current_platform,
-                    environ=env,
-                )
-            log.info(
-                "Auto backend selection: selected=wayland_portal reason=%s",
-                f"keyd unavailable ({reason}); falling back to portal backend",
+            log.warning(
+                "Auto backend selection: selected=none reason=%s",
+                f"keyd unavailable ({reason}); no fallback Wayland backend configured",
             )
-            return wayland_backend or WaylandPortalBackend(logger=log, platform_name=current_platform)
+            return NullHotkeyBackend(
+                reason=f"Auto backend mode requires keyd to be active on Wayland ({reason})",
+                logger=log,
+            )
         if session == "x11":
             return x11_backend or X11HotkeyBackend(logger=log, platform_name=current_platform)
         return NullHotkeyBackend(reason="Linux session type is unknown; hotkeys disabled", logger=log)
@@ -135,8 +116,6 @@ def _select_backend_for_explicit_mode(
     environ: Mapping[str, str],
     x11_backend: Optional[HotkeyBackend],
     keyd_backend: Optional[HotkeyBackend],
-    wayland_backend: Optional[HotkeyBackend],
-    gnome_bridge_backend: Optional[HotkeyBackend],
     keyd_health_checker: Optional[Callable[[], tuple[bool, str]]],
 ) -> HotkeyBackend:
     if mode == "x11":
@@ -146,14 +125,6 @@ def _select_backend_for_explicit_mode(
                 logger=logger,
             )
         return x11_backend or X11HotkeyBackend(logger=logger, platform_name=platform_name)
-
-    if mode == "wayland_portal":
-        if session != "wayland":
-            return NullHotkeyBackend(
-                reason=f"Backend mode '{mode}' requires a Wayland session",
-                logger=logger,
-            )
-        return wayland_backend or WaylandPortalBackend(logger=logger, platform_name=platform_name)
 
     if mode == "wayland_keyd":
         if session != "wayland":
@@ -172,18 +143,6 @@ def _select_backend_for_explicit_mode(
             platform_name=platform_name,
             environ=environ,
             plugin_dir=plugin_dir,
-        )
-
-    if mode == "wayland_gnome_bridge":
-        if session != "wayland":
-            return NullHotkeyBackend(
-                reason=f"Backend mode '{mode}' requires a Wayland session",
-                logger=logger,
-            )
-        return gnome_bridge_backend or GnomeWaylandBridgeBackend(
-            logger=logger,
-            platform_name=platform_name,
-            environ=environ,
         )
 
     return NullHotkeyBackend(

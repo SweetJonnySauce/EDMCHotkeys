@@ -58,4 +58,4 @@ In EDMC:
 ## Notes
 - Use `thread_policy="main"` for UI changes.
 - Use `thread_policy="worker"` only for non-UI/background work.
-- On Wayland portal/GNOME bridge, use generic modifiers (`Ctrl`, `Alt`, `Shift`, `Win`), not side-specific (`LCtrl`, `RShift`).
+- On Linux Wayland keyd, side-specific modifiers (`LCtrl`, `RShift`, etc.) are supported.

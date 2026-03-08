@@ -1,6 +1,6 @@
 # EDMCHotkeys
 
-Global hotkeys plugin for EDMarketConnector with Windows, Linux X11, and Linux Wayland backends.
+Global hotkeys plugin for EDMarketConnector with Windows, Linux X11, and Linux Wayland keyd backends.
 
 ## Installation
 
@@ -12,23 +12,14 @@ Global hotkeys plugin for EDMarketConnector with Windows, Linux X11, and Linux W
 - Download the current release
 - Extract the plugin into your EDMC plugins directory
 
-### Linux Wayland with GNOME
+### Linux Wayland (keyd)
 - Download the current release
 - Extract the plugin into your EDMC plugins directory
-- Status: validated for GNOME Wayland bridge coverage
-- Follow GNOME bridge setup in:
-  - [linux-user-setup.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/linux-user-setup.md)
-  - [COMPANION_SETUP.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/COMPANION_SETUP.md)
-
-### Linux Wayland (Non-GNOME Portal Path)
-- Status: not yet validated by project maintainers
-- Download the current release
-- Extract the plugin into your EDMC plugins directory
+- Install and start `keyd`
 - Follow setup and verification steps in [linux-user-setup.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/linux-user-setup.md)
 
 ## Validation Status
-- GNOME Wayland bridge path: validated (see [gnome-companion-compatibility-matrix.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/gnome-companion-compatibility-matrix.md))
-- Non-GNOME Wayland portal path: not yet validated
+- Linux Wayland keyd path: validated
 
 ## Usage
 1) Open up EDMC Settings (File > Settings) and navigate to the EDMCHotkeys tab
@@ -45,7 +36,7 @@ Global hotkeys plugin for EDMarketConnector with Windows, Linux X11, and Linux W
 ## Usage notes
 - Hotkeys need to be globally unique. You will need to make sure the hotkey you assign does not conflict with other app key combos. i.e. Elite Dangerous Options>Controls
 - If you don't see a plugin in the dropdown box, that's most likely because they haven't implemented EDMCHotkeys. There's nothing I can do to help with that.
-- The Wayland version does not support side specific modifiers (i.e. LShift / RShift)
+- Linux Wayland keyd supports side-specific modifiers (for example `LCtrl`, `RShift`).
 - [EDMCModernOverlay](https://github.com/SweetJonnySauce/EDMCModernOverlay) users need release [0.8.0 Alpha #1](https://github.com/SweetJonnySauce/EDMCModernOverlay/releases/tag/0.8.0-alpha-1) or greater.
 
 ## Plugin Developer API
