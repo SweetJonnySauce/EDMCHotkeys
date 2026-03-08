@@ -31,10 +31,14 @@ def test_validate_version_patterns() -> None:
     module = _load_builder_module()
 
     assert module.validate_version("v0.1.0")
+    assert module.validate_version("v2.3.4-alpha-1")
+    assert module.validate_version("v2.3.4-beta-1")
+    assert module.validate_version("v2.3.4-alpha.1")
     assert module.validate_version("v2.3.4-rc.1")
     assert not module.validate_version("0.1.0")
     assert not module.validate_version("v1.0")
-    assert not module.validate_version("v1.2.3-beta.1")
+    assert not module.validate_version("v1.2.3-")
+    assert not module.validate_version("v1.2.3-beta_1")
 
 
 def test_variant_matrix_uses_new_wayland_artifact_names() -> None:

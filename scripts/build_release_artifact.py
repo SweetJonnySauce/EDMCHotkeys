@@ -19,7 +19,7 @@ import zipfile
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TOP_LEVEL_DIR = "EDMCHotkeys"
-VERSION_PATTERN = re.compile(r"^v\d+\.\d+\.\d+(?:-rc\.\d+)?$")
+VERSION_PATTERN = re.compile(r"^v\d+\.\d+\.\d+(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?$")
 
 GLOBAL_EXCLUDES = (
     ".git",
@@ -362,7 +362,11 @@ def build_artifact(*, variant: str, version: str, output_dir: Path, keep_work: b
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--variant", choices=sorted(VARIANT_SPECS), required=True)
-    parser.add_argument("--version", required=True, help="Version/tag, e.g. v0.1.0 or v0.1.0-rc.1")
+    parser.add_argument(
+        "--version",
+        required=True,
+        help="Version/tag, e.g. v0.1.0, v0.1.0-alpha-1, v0.1.0-beta-1, or v0.1.0-rc.1",
+    )
     parser.add_argument("--output-dir", default=str(REPO_ROOT / "dist"))
     parser.add_argument("--keep-work", action="store_true", help="Keep intermediate build workspace for debugging")
     return parser.parse_args(argv)
