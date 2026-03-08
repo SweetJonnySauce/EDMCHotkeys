@@ -83,12 +83,6 @@ jobs:
           - variant: linux-wayland
             artifact_suffix: linux-wayland
             artifact_ext: tar.gz
-          - variant: linux-wayland-portal
-            artifact_suffix: linux-wayland-portal
-            artifact_ext: tar.gz
-          - variant: linux-wayland-gnome-bridge
-            artifact_suffix: linux-wayland-gnome-bridge
-            artifact_ext: tar.gz
           - variant: windows
             artifact_suffix: windows
             artifact_ext: zip
@@ -135,8 +129,8 @@ jobs:
           set -euo pipefail
           ls -lah dist
           count="$(find dist -maxdepth 1 -type f -name '*.tar.gz' -o -type f -name '*.zip' | wc -l | tr -d ' ')"
-          if [[ "${count}" != "5" ]]; then
-            echo "Expected 5 artifacts (4 Linux + 1 Windows), found ${count}" >&2
+          if [[ "${count}" != "3" ]]; then
+            echo "Expected 3 artifacts (2 Linux + 1 Windows), found ${count}" >&2
             exit 1
           fi
           sha256sum dist/*.tar.gz dist/*.zip > dist/SHA256SUMS.txt
