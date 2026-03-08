@@ -12,23 +12,8 @@ Global hotkeys plugin for EDMarketConnector with Windows, Linux X11, and Linux W
 - Download the current release
 - Extract the plugin into your EDMC plugins directory
 
-### Linux Wayland with GNOME
-- Download the current release
-- Extract the plugin into your EDMC plugins directory
-- Status: validated for GNOME Wayland bridge coverage
-- Follow GNOME bridge setup in:
-  - [linux-user-setup.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/linux-user-setup.md)
-  - [COMPANION_SETUP.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/COMPANION_SETUP.md)
-
-### Linux Wayland (Non-GNOME Portal Path)
-- Status: not yet validated by project maintainers
-- Download the current release
-- Extract the plugin into your EDMC plugins directory
-- Follow setup and verification steps in [linux-user-setup.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/linux-user-setup.md)
-
-## Validation Status
-- GNOME Wayland bridge path: validated (see [gnome-companion-compatibility-matrix.md](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/gnome-companion-compatibility-matrix.md))
-- Non-GNOME Wayland portal path: not yet validated
+### Linux Wayland
+- This is currently going through a major overhaul. Please do not use this backend or just be aware that it will be changing substantially.
 
 ## Usage
 1) Open up EDMC Settings (File > Settings) and navigate to the EDMCHotkeys tab
