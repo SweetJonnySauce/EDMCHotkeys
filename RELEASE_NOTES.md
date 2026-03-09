@@ -4,6 +4,8 @@
 
 Summary:
 - Wayland backend has been refactored to use keyd. Other Wayland backends based on dbus have been removed.
+- Added semantic versioning to plugin
+- Cleaned up settings pref pane layout
 
 ## v0.1.0 - Initial Release
 - See README
