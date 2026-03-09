@@ -24,6 +24,7 @@ from edmc_hotkeys.semver import SemVerError, parse_semver, strip_v_prefix
 
 REPO_ROOT = ROOT
 TOP_LEVEL_DIR = "EDMCHotkeys"
+RELEASE_README_FILENAME = "README.txt"
 
 GLOBAL_EXCLUDES = (
     ".git",
@@ -39,6 +40,7 @@ GLOBAL_EXCLUDES = (
     "tests",
     "AGENTS.md",
     "Makefile",
+    "DEV.md",
     "README.md",
     "RELEASE_NOTES.md",
     "requirements-dev.txt",
@@ -51,6 +53,8 @@ TREE_FORBIDDEN_NAMES = {
     ".mypy_cache",
     ".ruff_cache",
 }
+
+EXPECTED_ARCHIVE_TOP_LEVELS = {TOP_LEVEL_DIR, RELEASE_README_FILENAME}
 
 ALWAYS_REQUIRED = (
     "load.py",
@@ -304,10 +308,12 @@ def _verify_tar_layout(artifact_path: Path) -> None:
                 continue
             top = name.split("/", 1)[0]
             top_levels.add(top)
-        if top_levels != {TOP_LEVEL_DIR}:
+        if top_levels != EXPECTED_ARCHIVE_TOP_LEVELS:
             joined = ", ".join(sorted(top_levels))
             raise ReleaseArtifactError(
-                f"artifact must unpack to single top-level '{TOP_LEVEL_DIR}' directory, found: {joined}"
+                "artifact must unpack to top-level entries "
+                + ", ".join(sorted(EXPECTED_ARCHIVE_TOP_LEVELS))
+                + f"; found: {joined}"
             )
 
 
@@ -320,11 +326,34 @@ def _verify_zip_layout(artifact_path: Path) -> None:
                 continue
             top = name.split("/", 1)[0]
             top_levels.add(top)
-        if top_levels != {TOP_LEVEL_DIR}:
+        if top_levels != EXPECTED_ARCHIVE_TOP_LEVELS:
             joined = ", ".join(sorted(top_levels))
             raise ReleaseArtifactError(
-                f"artifact must unpack to single top-level '{TOP_LEVEL_DIR}' directory, found: {joined}"
+                "artifact must unpack to top-level entries "
+                + ", ".join(sorted(EXPECTED_ARCHIVE_TOP_LEVELS))
+                + f"; found: {joined}"
             )
+
+
+def _release_readme_text() -> str:
+    return (
+        "Installation\n"
+        "-----------------------------------------------------------\n"
+        "1) Copy the EDMCHotkeys folder into the EDMC Plugins folder\n"
+        "2) Restart EDMC\n\n"
+        "Upgrade\n"
+        "-----------------------------------------------------------\n"
+        "1) Shut down EDMC\n"
+        "2) Rename the EDMCHotkeys plugin folder to EDMCHotkeys.disabled\n"
+        "3) Copy the EDMCHotkeys folder into the EDMC Plugins folder\n"
+        "4) Copy your bindings.json file from EDMCHotkeys.disabled folder to the upgraded EDMCHotkeys folder\n"
+        "5) Start EDMC\n\n"
+        "EDMC Plugin folder location (typical)\n"
+        "----------------------------------------------------------\n"
+        "Windows: %LOCALAPPDATA%\\EDMarketConnector\\plugins\n"
+        "Linux: ~/.local/share/EDMarketConnector/plugins\n"
+        "Linux (Flatpak): ~/.var/app/io.edcd.EDMarketConnector/data/EDMarketConnector/plugins\n"
+    )
 
 
 def build_artifact(*, variant: str, version: str, output_dir: Path, keep_work: bool) -> Path:
@@ -338,9 +367,11 @@ def build_artifact(*, variant: str, version: str, output_dir: Path, keep_work: b
 
     tempdir = Path(tempfile.mkdtemp(prefix=f"release-{variant}-"))
     workspace_root = tempdir / TOP_LEVEL_DIR
+    release_readme_path = tempdir / RELEASE_README_FILENAME
     try:
         _copy_workspace(workspace_root)
         (workspace_root / "VERSION").write_text(strip_v_prefix(version.strip()) + "\n", encoding="utf-8")
+        release_readme_path.write_text(_release_readme_text(), encoding="utf-8")
         _run_vendor_script(workspace_root, spec.vendor_script)
         apply_variant_policy(workspace_root, spec)
         verify_tree(workspace_root, spec)
@@ -350,6 +381,7 @@ def build_artifact(*, variant: str, version: str, output_dir: Path, keep_work: b
         if spec.archive_format == "tar.gz":
             with tarfile.open(artifact_path, "w:gz") as archive:
                 archive.add(workspace_root, arcname=TOP_LEVEL_DIR)
+                archive.add(release_readme_path, arcname=RELEASE_README_FILENAME)
             _verify_tar_layout(artifact_path)
         elif spec.archive_format == "zip":
             with zipfile.ZipFile(artifact_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
@@ -358,6 +390,7 @@ def build_artifact(*, variant: str, version: str, output_dir: Path, keep_work: b
                         continue
                     arcname = f"{TOP_LEVEL_DIR}/{path.relative_to(workspace_root).as_posix()}"
                     archive.write(path, arcname)
+                archive.write(release_readme_path, RELEASE_README_FILENAME)
             _verify_zip_layout(artifact_path)
         else:
             raise ReleaseArtifactError(f"unsupported archive format: {spec.archive_format}")

@@ -3,6 +3,8 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 import sys
+import tarfile
+import zipfile
 
 import pytest
 
@@ -126,3 +128,46 @@ def test_generate_variant_config_defaults_filters_keyd_section(tmp_path: Path) -
     text = (root / "config.defaults.ini").read_text(encoding="utf-8")
     assert "mode = auto" in text
     assert "[keyd]" not in text
+
+
+def test_release_readme_text_contains_expected_install_paths() -> None:
+    module = _load_builder_module()
+    text = module._release_readme_text()
+
+    assert "Installation" in text
+    assert "Upgrade" in text
+    assert "Windows: %LOCALAPPDATA%\\EDMarketConnector\\plugins" in text
+    assert "Linux: ~/.local/share/EDMarketConnector/plugins" in text
+    assert "Linux (Flatpak): ~/.var/app/io.edcd.EDMarketConnector/data/EDMarketConnector/plugins" in text
+
+
+def test_verify_tar_layout_accepts_top_level_readme(tmp_path: Path) -> None:
+    module = _load_builder_module()
+    archive_path = tmp_path / "artifact.tar.gz"
+    plugin_dir = tmp_path / module.TOP_LEVEL_DIR
+    plugin_dir.mkdir()
+    (plugin_dir / "load.py").write_text("# entry\n", encoding="utf-8")
+    readme = tmp_path / module.RELEASE_README_FILENAME
+    readme.write_text("release readme\n", encoding="utf-8")
+
+    with tarfile.open(archive_path, "w:gz") as archive:
+        archive.add(plugin_dir, arcname=module.TOP_LEVEL_DIR)
+        archive.add(readme, arcname=module.RELEASE_README_FILENAME)
+
+    module._verify_tar_layout(archive_path)
+
+
+def test_verify_zip_layout_accepts_top_level_readme(tmp_path: Path) -> None:
+    module = _load_builder_module()
+    archive_path = tmp_path / "artifact.zip"
+    plugin_dir = tmp_path / module.TOP_LEVEL_DIR
+    plugin_dir.mkdir()
+    (plugin_dir / "load.py").write_text("# entry\n", encoding="utf-8")
+    readme = tmp_path / module.RELEASE_README_FILENAME
+    readme.write_text("release readme\n", encoding="utf-8")
+
+    with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.write(plugin_dir / "load.py", f"{module.TOP_LEVEL_DIR}/load.py")
+        archive.write(readme, module.RELEASE_README_FILENAME)
+
+    module._verify_zip_layout(archive_path)
