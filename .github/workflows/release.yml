@@ -149,6 +149,16 @@ jobs:
             --version "${VERSION}" \
             --output dist/vtscan.txt
 
+      - name: Append VirusTotal URLs to release notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo ""
+            echo "### VirusTotal"
+            awk -F': ' '/URL: /{print "- " $2}' dist/vtscan.txt
+          } >> dist/RELEASE_NOTES.release.md
+
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
