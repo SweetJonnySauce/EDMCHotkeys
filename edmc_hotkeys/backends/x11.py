@@ -197,22 +197,18 @@ class PythonXlibClient:
         keycode, modifiers = result
         requires_side_specific = any(_is_side_specific_modifier(token) for token in parsed.modifiers)
 
-        # Side-specific bindings are evaluated via keymap polling to avoid
-        # passive-grab delivery variance across X11 setups.
-        if requires_side_specific:
-            required_modifiers = parsed.modifiers
-            grab_modifiers: tuple[int, ...] = ()
-        else:
-            required_modifiers = ()
-            grab_modifiers = _registration_grab_modifiers(
-                modifiers_mask=modifiers,
-                required_modifiers=required_modifiers,
-            )
-            if not grab_modifiers:
-                self._logger.warning("No X11 grab modifiers resolved for hotkey '%s'", hotkey)
-                return False
-            if not self._register_grabs(keycode=keycode, modifiers=grab_modifiers, hotkey=hotkey):
-                return False
+        # Always register passive grabs for delivery reliability. For side-specific
+        # bindings we still validate exact left/right state in event matching.
+        required_modifiers = parsed.modifiers if requires_side_specific else ()
+        grab_modifiers = _registration_grab_modifiers(
+            modifiers_mask=modifiers,
+            required_modifiers=required_modifiers,
+        )
+        if not grab_modifiers:
+            self._logger.warning("No X11 grab modifiers resolved for hotkey '%s'", hotkey)
+            return False
+        if not self._register_grabs(keycode=keycode, modifiers=grab_modifiers, hotkey=hotkey):
+            return False
 
         self._registrations[binding_id] = _X11Registration(
             keycode=keycode,
@@ -322,6 +318,8 @@ class PythonXlibClient:
 
         for binding_id, registration in list(self._registrations.items()):
             if not registration.required_modifiers:
+                continue
+            if registration.grab_modifiers:
                 continue
             is_active = registration.keycode in pressed_keycodes and _registration_matches_event(
                 registration=registration,
@@ -551,22 +549,9 @@ def _registration_grab_modifiers(*, modifiers_mask: int, required_modifiers: tup
     if not required_modifiers:
         return (modifiers_mask,)
 
-    required_groups = {
-        group_mask
-        for token in required_modifiers
-        if (group_mask := _modifier_mask_for_token(token)) is not None
-    }
-    if not required_groups:
-        return (modifiers_mask,)
-
-    fallback_masks = {modifiers_mask}
-    for group_mask in required_groups:
-        fallback = modifiers_mask & ~group_mask
-        if fallback != 0:
-            fallback_masks.add(fallback)
-    ordered = [modifiers_mask]
-    ordered.extend(mask for mask in sorted(fallback_masks) if mask != modifiers_mask)
-    return tuple(ordered)
+    # For side-specific bindings we must avoid grabbing partial fallbacks
+    # (e.g. Shift-only), which can swallow normal typing.
+    return (modifiers_mask,)
 
 
 def _modifier_group_for_token(token: str) -> str | None:

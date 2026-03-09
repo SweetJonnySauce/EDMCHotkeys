@@ -117,12 +117,14 @@ KEYD_ALERT_STATE_INTEGRATION_MISSING = "IntegrationMissing"
 KEYD_ALERT_STATE_READY = "Ready"
 KEYD_ALERT_STATE_EXPORT_REQUIRED = "ExportRequired"
 KEYD_ALERT_STATE_AUTO_HINT = "AutoHint"
+KEYD_ALERT_STATE_X11_KEYD_CONFLICT = "X11KeydConflict"
 
 _KEYD_ALERT_VISIBLE_STATES = {
     KEYD_ALERT_STATE_KEYD_MISSING,
     KEYD_ALERT_STATE_INTEGRATION_MISSING,
     KEYD_ALERT_STATE_EXPORT_REQUIRED,
     KEYD_ALERT_STATE_AUTO_HINT,
+    KEYD_ALERT_STATE_X11_KEYD_CONFLICT,
 }
 
 
@@ -270,6 +272,16 @@ def keyd_alert_view_for_state(
                 "EDMCHotkeys is running in Wayland auto mode, but keyd is not active. "
                 "Install/start keyd, restart EDMC, then return to this settings page "
                 "to enable keyd integration."
+            ),
+        )
+    if state == KEYD_ALERT_STATE_X11_KEYD_CONFLICT:
+        return KeydAlertViewModel(
+            state=state,
+            summary="Keyd may conflict with X11 hotkeys.",
+            body=(
+                "EDMCHotkeys is currently using the linux-x11 backend while keyd is active. "
+                "These conflicts may cause hotkeys to not work. "
+                "You can either stop keyd or remove /etc/keyd/edmchotkeys.conf and restart keyd to remove the conflict."
             ),
         )
     if state in {KEYD_ALERT_STATE_INACTIVE, KEYD_ALERT_STATE_READY}:

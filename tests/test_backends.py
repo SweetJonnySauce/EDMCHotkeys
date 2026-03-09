@@ -369,6 +369,14 @@ def test_x11_event_modifiers_from_pressed() -> None:
     assert modifiers & 0x01
 
 
+def test_x11_registration_grab_modifiers_side_specific_avoids_partial_fallbacks() -> None:
+    modifiers = _registration_grab_modifiers(
+        modifiers_mask=_FakeX11Mask.ControlMask | _FakeX11Mask.ShiftMask,
+        required_modifiers=("ctrl_l", "shift_l"),
+    )
+    assert modifiers == (_FakeX11Mask.ControlMask | _FakeX11Mask.ShiftMask,)
+
+
 def test_x11_backend_uses_client_when_available() -> None:
     client = _FakeX11Client()
     backend = X11HotkeyBackend(

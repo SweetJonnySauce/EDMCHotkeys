@@ -14,6 +14,7 @@ from edmc_hotkeys.settings_ui import (
     KEYD_ALERT_STATE_INTEGRATION_MISSING,
     KEYD_ALERT_STATE_KEYD_MISSING,
     KEYD_ALERT_STATE_READY,
+    KEYD_ALERT_STATE_X11_KEYD_CONFLICT,
     KeydAlertAction,
     KeydAlertActionOutcome,
     KeydAlertViewModel,
@@ -785,6 +786,18 @@ def test_keyd_alert_view_for_state_auto_hint_uses_approved_text() -> None:
     assert view.summary == "Keyd is not active."
     assert "Wayland auto mode" in view.body
     assert "restart EDMC" in view.body
+    assert view.visible is True
+
+
+def test_keyd_alert_view_for_state_x11_keyd_conflict_is_info_only() -> None:
+    view = keyd_alert_view_for_state(KEYD_ALERT_STATE_X11_KEYD_CONFLICT)
+    assert view.summary == "Keyd may conflict with X11 hotkeys."
+    assert "conflicts may cause hotkeys to not work" in view.body
+    assert "remove /etc/keyd/edmchotkeys.conf and restart keyd" in view.body
+    assert view.primary_action is None
+    assert view.show_copy_button is False
+    assert view.show_privilege_warning is False
+    assert view.show_terminal_warning is False
     assert view.visible is True
 
 

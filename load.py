@@ -37,6 +37,7 @@ from edmc_hotkeys.settings_ui import (
     KEYD_ALERT_STATE_INTEGRATION_MISSING,
     KEYD_ALERT_STATE_KEYD_MISSING,
     KEYD_ALERT_STATE_READY,
+    KEYD_ALERT_STATE_X11_KEYD_CONFLICT,
     KeydAlertActionOutcome,
     KeydAlertViewModel,
     SettingsPanel,
@@ -74,6 +75,7 @@ _KEYD_ACTION_POLL_TIMEOUT_SECONDS = 900
 _keyd_action_poll_owner: Optional[object] = None
 _keyd_action_poll_after_id: Optional[object] = None
 _pending_keyd_action: Optional["_PendingKeydAction"] = None
+_last_keyd_alert_state: Optional[str] = None
 
 
 @dataclass
@@ -88,7 +90,7 @@ class _PendingKeydAction:
 
 def plugin_start3(plugin_dir: str) -> str:
     """EDMC plugin start hook."""
-    global _plugin, _bindings_store, _bindings_document, _runtime_config
+    global _plugin, _bindings_store, _bindings_document, _runtime_config, _last_keyd_alert_state
     plugin_path = Path(plugin_dir)
     _runtime_config, config_sources = _resolve_runtime_config(plugin_path)
     _apply_runtime_keyd_environment(_runtime_config)
@@ -116,6 +118,8 @@ def plugin_start3(plugin_dir: str) -> str:
     if not _plugin.replace_bindings(bindings):
         logger.warning("Some bindings failed to register during startup")
     _plugin.start()
+    _last_keyd_alert_state = None
+    _apply_keyd_alert_transition(_build_keyd_alert_model().state)
     _maybe_export_keyd_bindings(reason="startup")
     _ensure_dispatch_pump_running()
     return plugin_name
@@ -193,7 +197,7 @@ def _edmc_get_str_getter():
 
 def plugin_stop() -> None:
     """EDMC plugin stop hook."""
-    global _plugin, _settings_panel, _runtime_config, _pending_keyd_action
+    global _plugin, _settings_panel, _runtime_config, _pending_keyd_action, _last_keyd_alert_state
     _cancel_keyd_action_poll()
     _stop_dispatch_pump()
     if _plugin is not None:
@@ -202,6 +206,7 @@ def plugin_stop() -> None:
     _settings_panel = None
     _runtime_config = None
     _pending_keyd_action = None
+    _last_keyd_alert_state = None
 
 
 def register_action(action: Action) -> bool:
@@ -480,7 +485,19 @@ def _refresh_keyd_alert_panel() -> None:
     panel = _settings_panel
     if panel is None:
         return
-    panel.set_keyd_alert(_build_keyd_alert_model())
+    model = _build_keyd_alert_model()
+    _apply_keyd_alert_transition(model.state)
+    panel.set_keyd_alert(model)
+
+
+def _apply_keyd_alert_transition(state: str) -> None:
+    global _last_keyd_alert_state
+    previous_state = _last_keyd_alert_state
+    _last_keyd_alert_state = state
+    if state == KEYD_ALERT_STATE_X11_KEYD_CONFLICT and previous_state != KEYD_ALERT_STATE_X11_KEYD_CONFLICT:
+        logger.warning(
+            "keyd is active while EDMCHotkeys is using linux-x11; conflicts may cause hotkeys to not work."
+        )
 
 
 def _install_prefs_open_refresh(frame: object) -> None:
@@ -529,6 +546,9 @@ def _build_keyd_alert_model() -> KeydAlertViewModel:
     session = detect_linux_session(os.environ)
     keyd_status = detect_keyd_availability()
     command_set = build_keyd_command_set(plugin_dir=plugin.plugin_dir, config=_runtime_config)
+
+    if selected_backend == "linux-x11" and keyd_status.available:
+        return keyd_alert_view_for_state(KEYD_ALERT_STATE_X11_KEYD_CONFLICT)
 
     if selected_backend == "linux-wayland-keyd":
         if not keyd_status.available:

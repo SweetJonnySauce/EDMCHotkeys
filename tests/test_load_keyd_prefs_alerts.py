@@ -205,6 +205,76 @@ def test_build_keyd_alert_model_returns_keyd_missing_when_keyd_backend_unavailab
     assert model.state == "KeydMissing"
 
 
+def test_build_keyd_alert_model_returns_x11_keyd_conflict_when_x11_backend_has_active_keyd(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    fake_plugin = _FakePlugin(backend_name="linux-x11", plugin_dir=tmp_path)
+    monkeypatch.setattr(plugin_load, "_plugin", fake_plugin)
+    monkeypatch.setattr(plugin_load, "_runtime_config", _runtime_config())
+    monkeypatch.setattr(plugin_load, "_require_started", lambda: fake_plugin)
+    monkeypatch.setattr(plugin_load, "detect_linux_session", lambda _env: "x11")
+    monkeypatch.setattr(
+        plugin_load,
+        "detect_keyd_availability",
+        lambda: KeydAvailabilityStatus(
+            available=True,
+            keyd_executable_found=True,
+            systemd_available=True,
+            keyd_active=True,
+            reason="active",
+        ),
+    )
+    monkeypatch.setattr(
+        plugin_load,
+        "build_keyd_command_set",
+        lambda **_kwargs: KeydCommandSet(
+            install_helper_command="install helper",
+            apply_config_command="apply config",
+            export_command="export config",
+        ),
+    )
+
+    model = plugin_load._build_keyd_alert_model()
+    assert model.state == "X11KeydConflict"
+    assert model.primary_action is None
+    assert model.show_copy_button is False
+
+
+def test_build_keyd_alert_model_returns_inactive_when_x11_backend_has_no_active_keyd(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    fake_plugin = _FakePlugin(backend_name="linux-x11", plugin_dir=tmp_path)
+    monkeypatch.setattr(plugin_load, "_plugin", fake_plugin)
+    monkeypatch.setattr(plugin_load, "_runtime_config", _runtime_config())
+    monkeypatch.setattr(plugin_load, "_require_started", lambda: fake_plugin)
+    monkeypatch.setattr(plugin_load, "detect_linux_session", lambda _env: "x11")
+    monkeypatch.setattr(
+        plugin_load,
+        "detect_keyd_availability",
+        lambda: KeydAvailabilityStatus(
+            available=False,
+            keyd_executable_found=True,
+            systemd_available=True,
+            keyd_active=False,
+            reason="inactive",
+        ),
+    )
+    monkeypatch.setattr(
+        plugin_load,
+        "build_keyd_command_set",
+        lambda **_kwargs: KeydCommandSet(
+            install_helper_command="install helper",
+            apply_config_command="apply config",
+            export_command="export config",
+        ),
+    )
+
+    model = plugin_load._build_keyd_alert_model()
+    assert model.state == "Inactive"
+
+
 def test_build_keyd_alert_model_returns_export_required_when_state_requires_reload(
     monkeypatch,
     tmp_path: Path,
@@ -628,6 +698,34 @@ def test_install_prefs_open_refresh_is_idempotent(monkeypatch) -> None:
     plugin_load._install_prefs_open_refresh(frame)
 
     assert len(frame.bind_calls) == 1
+
+
+def test_refresh_keyd_alert_panel_logs_x11_keyd_conflict_once_per_transition(monkeypatch) -> None:
+    captured_models: list[object] = []
+    fake_panel = SimpleNamespace(set_keyd_alert=lambda model: captured_models.append(model))
+    warning_messages: list[str] = []
+
+    state_iter = iter(
+        (
+            plugin_load.KeydAlertViewModel(state="X11KeydConflict"),
+            plugin_load.KeydAlertViewModel(state="X11KeydConflict"),
+            plugin_load.KeydAlertViewModel(state="Inactive"),
+            plugin_load.KeydAlertViewModel(state="X11KeydConflict"),
+        )
+    )
+    monkeypatch.setattr(plugin_load, "_settings_panel", fake_panel)
+    monkeypatch.setattr(plugin_load, "_build_keyd_alert_model", lambda: next(state_iter))
+    monkeypatch.setattr(plugin_load, "_last_keyd_alert_state", None)
+    monkeypatch.setattr(plugin_load.logger, "warning", lambda message, *args: warning_messages.append(message % args if args else message))
+
+    plugin_load._refresh_keyd_alert_panel()
+    plugin_load._refresh_keyd_alert_panel()
+    plugin_load._refresh_keyd_alert_panel()
+    plugin_load._refresh_keyd_alert_panel()
+
+    assert len(captured_models) == 4
+    assert len(warning_messages) == 2
+    assert all("conflicts may cause hotkeys to not work" in message for message in warning_messages)
 
 
 def test_plugin_prefs_passes_bindings_changed_callback_to_settings_panel(monkeypatch, tmp_path: Path) -> None:
