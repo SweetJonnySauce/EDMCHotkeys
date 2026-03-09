@@ -138,6 +138,17 @@ jobs:
             --version "${VERSION}" \
             --output dist/RELEASE_NOTES.release.md
 
+      - name: VirusTotal source scan
+        shell: bash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          VT_API_KEY: ${{ secrets.VT_API_KEY }}
+        run: |
+          set -euo pipefail
+          python3 scripts/virustotal_scan_source.py \
+            --version "${VERSION}" \
+            --output dist/vtscan.txt
+
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -148,7 +159,7 @@ jobs:
           set -euo pipefail
           if gh release view "${VERSION}" >/dev/null 2>&1; then
             echo "Release ${VERSION} already exists; uploading assets and updating notes."
-            gh release upload "${VERSION}" dist/*.tar.gz dist/*.zip dist/SHA256SUMS.txt --clobber
+            gh release upload "${VERSION}" dist/*.tar.gz dist/*.zip dist/SHA256SUMS.txt dist/vtscan.txt --clobber
             edit_flags=(--title "${VERSION}" --notes-file dist/RELEASE_NOTES.release.md)
             if [[ "${PRERELEASE}" == "true" ]]; then
               edit_flags+=(--prerelease)
@@ -159,9 +170,9 @@ jobs:
             if [[ "${PRERELEASE}" == "true" ]]; then
               flags+=(--prerelease)
             fi
-            if ! gh release create "${VERSION}" "${flags[@]}" dist/*.tar.gz dist/*.zip dist/SHA256SUMS.txt; then
+            if ! gh release create "${VERSION}" "${flags[@]}" dist/*.tar.gz dist/*.zip dist/SHA256SUMS.txt dist/vtscan.txt; then
               echo "Release create failed; retrying as upload/edit in case of race."
-              gh release upload "${VERSION}" dist/*.tar.gz dist/*.zip dist/SHA256SUMS.txt --clobber
+              gh release upload "${VERSION}" dist/*.tar.gz dist/*.zip dist/SHA256SUMS.txt dist/vtscan.txt --clobber
               edit_flags=(--title "${VERSION}" --notes-file dist/RELEASE_NOTES.release.md)
               if [[ "${PRERELEASE}" == "true" ]]; then
                 edit_flags+=(--prerelease)

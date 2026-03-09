@@ -51,6 +51,8 @@ Expected output:
    - Downloads all artifacts.
    - Generates `SHA256SUMS.txt`.
    - Extracts only the matching release-notes section from root `RELEASE_NOTES.md`.
+   - Scans a `git archive` source tarball with VirusTotal (requires repo secret `VT_API_KEY`).
+   - Writes `dist/vtscan.txt` containing the VirusTotal analysis/report URL(s).
    - Creates or updates the GitHub release for the version tag.
 
 ## Rollback
