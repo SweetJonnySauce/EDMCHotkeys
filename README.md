@@ -25,6 +25,7 @@ The Linux Wayland version integrates with `keyd`.
 - Install [`keyd`](https://github.com/rvaiya/keyd) per the instructions found on the `keyd` Github repo. `keyd` needs to be running on your system in order for the EDMCHotkeys Linux Wayland version to work. Verify the service is active with `systemctl is-active keyd`
 - Download the current release
 - Extract the EDMCHokeys folder into your EDMC plugins directory
+- Follow additional steps found on the EDMCHotkey settings preference pane (EDMC > File > Settings) to set up the integration
 
 ## Upgrade
 Follow these steps in order to preserve your Hotkey bindings across versions.
@@ -43,6 +44,7 @@ Follow these steps in order to preserve your Hotkey bindings across versions.
     - **Payload**: Refer to the registered plugin documenation for what to put here (most likely, this will be blank).
     - **Enabled:** Yes, the hotkey will be intercepted. No, the hotkeywill be ignored.
     - **Remove:** Remove the hotkey.
+3) For Linux Wayand users, you will need to export Hotkeys configurations to `keyd` whenever they are created, updated, or removed. Follow the instructions found on the EDMCHotkey settings preference pane (EDMC > File > Settings) to export the Hotkeys configurations.
 
 <img width="774" height="154" alt="image" src="https://github.com/user-attachments/assets/96f507f3-d4b8-4d5e-ab9c-50e4788bb434" />
 
