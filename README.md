@@ -5,7 +5,7 @@ Global hotkeys plugin for EDMarketConnector with Windows, Linux X11, and Linux W
 [![Github All Releases](https://img.shields.io/github/downloads/SweetJonnySauce/EDMCHotkeys/total.svg)](https://github.com/SweetJonnySauce/EDMCHotkeys/releases/latest)
 [![GitHub Latest Version](https://img.shields.io/github/v/release/SweetJonnySauce/EDMCHotkeys)](https://github.com/SweetJonnySauce/EDMCHotkeys/releases/latest)
 [![Build Status][build-badge]][build-url]
-[![VirusTotal](https://img.shields.io/badge/VirusTotal-clean-brightgreen.svg)](https://www.virustotal.com/gui/file/0a6612269ecbf822ee6df02883d4c9af246fc202325cc058cff9ed721ef278d4)
+[![VirusTotal](https://img.shields.io/badge/VirusTotal-clean-brightgreen.svg)](https://www.virustotal.com/gui/file-analysis/MzkzYTM1ODM2MDYzMWQwODMwOTI3N2NhZmUwOTE4YWE6MTc3MzAyNzg2Nw==)
 
 [build-badge]: https://github.com/SweetJonnySauce/EDMCHotkeys/actions/workflows/ci.yml/badge.svg?branch=main
 [build-url]: https://github.com/SweetJonnySauce/EDMCHotkeys/actions/workflows/ci.yml
