@@ -1,5 +1,6 @@
 PYTHON := $(shell if [ -x .venv/bin/python ]; then echo .venv/bin/python; elif command -v python >/dev/null 2>&1; then echo python; else echo python3; fi)
-VERSION ?= v0.0.0-rc.1
+RUNTIME_VERSION ?= $(shell tr -d '\n' < VERSION 2>/dev/null || echo 0.0.0-dev.0)
+VERSION ?= v$(RUNTIME_VERSION)
 
 .PHONY: check test compile lint typecheck docs-check vendor-xlib release-build release-build-all release-build-linux-x11 release-build-linux-wayland release-build-windows
 

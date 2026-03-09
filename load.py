@@ -14,6 +14,7 @@ from typing import Optional
 
 from edmc_hotkeys.bindings import BindingRecord, BindingsDocument, default_document
 from edmc_hotkeys.hotkey import canonical_hotkey_text
+from edmc_hotkeys.plugin_version import PLUGIN_TAG_VERSION, PLUGIN_VERSION
 from edmc_hotkeys.keyd_prefs_alerts import (
     KeydCommandSet,
     build_keyd_command_set,
@@ -94,6 +95,7 @@ def plugin_start3(plugin_dir: str) -> str:
     plugin_path = Path(plugin_dir)
     _runtime_config, config_sources = _resolve_runtime_config(plugin_path)
     _apply_runtime_keyd_environment(_runtime_config)
+    logger.info("EDMCHotkeys runtime version: %s (%s)", PLUGIN_VERSION, PLUGIN_TAG_VERSION)
     selected_backend_mode = _runtime_config.backend_mode.strip().lower()
     if selected_backend_mode not in _VALID_BACKEND_MODES:
         logger.warning("Invalid backend mode '%s' from runtime config; falling back to auto", selected_backend_mode)

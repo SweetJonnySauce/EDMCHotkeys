@@ -22,6 +22,7 @@ def _load_builder_module():
 def _seed_base_plugin_tree(root: Path) -> None:
     (root / "load.py").write_text("# plugin entrypoint\n", encoding="utf-8")
     (root / "config.defaults.ini").write_text("[backend]\nmode = auto\n", encoding="utf-8")
+    (root / "VERSION").write_text("0.0.0-dev.0\n", encoding="utf-8")
     package_dir = root / "edmc_hotkeys"
     package_dir.mkdir(parents=True, exist_ok=True)
     (package_dir / "__init__.py").write_text("", encoding="utf-8")
@@ -35,10 +36,14 @@ def test_validate_version_patterns() -> None:
     assert module.validate_version("v2.3.4-beta-1")
     assert module.validate_version("v2.3.4-alpha.1")
     assert module.validate_version("v2.3.4-rc.1")
+    assert module.validate_version("v2.3.4+build.5")
+    assert module.validate_version("v2.3.4-alpha.1+build.5")
     assert not module.validate_version("0.1.0")
     assert not module.validate_version("v1.0")
     assert not module.validate_version("v1.2.3-")
     assert not module.validate_version("v1.2.3-beta_1")
+    assert not module.validate_version("v1.2.3-01")
+    assert not module.validate_version("v01.2.3")
 
 
 def test_variant_matrix_uses_new_wayland_artifact_names() -> None:

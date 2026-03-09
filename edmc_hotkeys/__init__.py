@@ -1,5 +1,6 @@
 """EDMC Hotkeys plugin package."""
 
+from .plugin_version import PLUGIN_TAG_VERSION, PLUGIN_VERSION
 from .plugin import Binding, HotkeyPlugin
 from .backends import (
     BackendAvailability,
@@ -23,6 +24,8 @@ from .registry import (
 from .settings_state import ActionOption, BindingRow, SettingsState, ValidationIssue
 from .storage import BindingsStore
 
+__version__ = PLUGIN_VERSION
+
 __all__ = [
     "Action",
     "ActionOption",
@@ -41,6 +44,8 @@ __all__ = [
     "backend_contract_issues",
     "QueuedMainThreadDispatchExecutor",
     "ThreadedWorkerDispatchExecutor",
+    "PLUGIN_TAG_VERSION",
+    "PLUGIN_VERSION",
     "SettingsState",
     "ValidationIssue",
     "WindowsHotkeyBackend",

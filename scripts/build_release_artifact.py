@@ -8,7 +8,6 @@ import configparser
 from dataclasses import dataclass
 import os
 from pathlib import Path
-import re
 import shutil
 import subprocess
 import sys
@@ -16,10 +15,15 @@ import tarfile
 import tempfile
 import zipfile
 
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+from edmc_hotkeys.semver import SemVerError, parse_semver, strip_v_prefix
+
+
+REPO_ROOT = ROOT
 TOP_LEVEL_DIR = "EDMCHotkeys"
-VERSION_PATTERN = re.compile(r"^v\d+\.\d+\.\d+(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?$")
 
 GLOBAL_EXCLUDES = (
     ".git",
@@ -52,6 +56,7 @@ ALWAYS_REQUIRED = (
     "load.py",
     "edmc_hotkeys",
     "config.defaults.ini",
+    "VERSION",
 )
 
 
@@ -154,7 +159,11 @@ VARIANT_SPECS: dict[str, VariantSpec] = {
 
 
 def validate_version(version: str) -> bool:
-    return bool(VERSION_PATTERN.fullmatch(version.strip()))
+    try:
+        parse_semver(version.strip(), allow_v_prefix=True, require_v_prefix=True)
+    except SemVerError:
+        return False
+    return True
 
 
 def _remove_path(root: Path, relpath: str) -> None:
@@ -331,6 +340,7 @@ def build_artifact(*, variant: str, version: str, output_dir: Path, keep_work: b
     workspace_root = tempdir / TOP_LEVEL_DIR
     try:
         _copy_workspace(workspace_root)
+        (workspace_root / "VERSION").write_text(strip_v_prefix(version.strip()) + "\n", encoding="utf-8")
         _run_vendor_script(workspace_root, spec.vendor_script)
         apply_variant_policy(workspace_root, spec)
         verify_tree(workspace_root, spec)

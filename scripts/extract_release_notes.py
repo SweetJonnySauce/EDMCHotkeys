@@ -8,9 +8,14 @@ from pathlib import Path
 import re
 import sys
 
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from edmc_hotkeys.semver import SemVerError, parse_semver
+
 
 LEVEL2_HEADER = re.compile(r"^##\s+(?P<title>.+?)\s*$")
-BASE_VERSION = re.compile(r"^(v\d+\.\d+\.\d+)(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?$")
 
 
 class ReleaseNotesError(RuntimeError):
@@ -18,18 +23,23 @@ class ReleaseNotesError(RuntimeError):
 
 
 def _base_version(version: str) -> str:
-    match = BASE_VERSION.fullmatch(version)
-    if not match:
+    try:
+        semver = parse_semver(version, allow_v_prefix=True, require_v_prefix=True)
+    except SemVerError:
         raise ReleaseNotesError(f"invalid version format: {version}")
-    return match.group(1)
+    return semver.to_string(v_prefix=True, include_build=False).split("-", 1)[0]
 
 
 def _is_full_version_header(title: str, version: str) -> bool:
-    return bool(re.match(rf"^{re.escape(version)}(?:\s*$|\s+-\s+.+$)", title))
+    if title == version:
+        return True
+    return title.startswith(f"{version} - ")
 
 
 def _is_base_version_header(title: str, base_version: str) -> bool:
-    return bool(re.match(rf"^{re.escape(base_version)}(?:\s*$|\s+-\s+.+$)", title))
+    if title == base_version:
+        return True
+    return title.startswith(f"{base_version} - ")
 
 
 def extract_version_section(text: str, version: str) -> str:
