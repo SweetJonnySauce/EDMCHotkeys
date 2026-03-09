@@ -46,7 +46,8 @@ Follow these steps in order to preserve your Hotkey bindings across versions.
     - **Remove:** Remove the hotkey.
 3) For Linux Wayand users, you will need to export Hotkeys configurations to `keyd` whenever they are created, updated, or removed. Follow the instructions found on the EDMCHotkey settings preference pane (EDMC > File > Settings) to export the Hotkeys configurations.
 
-<img width="774" height="154" alt="image" src="https://github.com/user-attachments/assets/96f507f3-d4b8-4d5e-ab9c-50e4788bb434" />
+<img width="877" height="298" alt="image" src="https://github.com/user-attachments/assets/4c14d68c-56cc-4e13-bcc5-ebe9cb6b2d53" />
+
 
 ## Usage notes
 - Hotkeys need to be globally unique. You will need to make sure the hotkey you assign does not conflict with other app key combos. i.e. Elite Dangerous Options>Controls
