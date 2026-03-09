@@ -9,6 +9,8 @@
 
 Global hotkeys plugin for EDMarketConnector with Windows, Linux X11, and Linux Wayland backends.
 
+❗❗❗v0.5.0 Beta #1 has been released. Check it out [here](https://github.com/SweetJonnySauce/EDMCHotkeys/releases/tag/v0.5.0-beta-1)❗❗❗
+
 ## Installation
 
 ### Windows
