@@ -59,6 +59,7 @@ def _build_plugin_logger(plugin_name: str) -> logging.Logger:
 
 
 plugin_name = "EDMCHotkeys"
+PLUGIN_REPOSITORY_URL = "https://github.com/SweetJonnySauce/EDMCHotkeys"
 logger = _build_plugin_logger(plugin_name)
 _plugin: Optional[HotkeyPlugin] = None
 _bindings_store: Optional[BindingsStore] = None
@@ -323,6 +324,8 @@ def plugin_prefs(parent: object, cmdr: str, is_beta: bool) -> Optional[object]:
         notebook_widgets=notebook_widgets,
         supports_side_specific_modifiers=plugin.backend_capabilities().supports_side_specific_modifiers,
         on_bindings_changed=_on_settings_panel_changed,
+        version_text=PLUGIN_TAG_VERSION,
+        repo_url=PLUGIN_REPOSITORY_URL,
     )
     if _settings_panel is None:
         return None

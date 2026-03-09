@@ -868,6 +868,32 @@ def test_notify_bindings_changed_logs_debug_on_callback_error() -> None:
     assert panel._logger.debug_calls == ["Failed to process settings change callback"]
 
 
+def test_on_version_link_clicked_opens_repository_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    panel = settings_ui.SettingsPanel.__new__(settings_ui.SettingsPanel)
+    panel._version_repo_url = "https://github.com/SweetJonnySauce/EDMCHotkeys"
+    panel._logger = _DummyLogger()
+    opened_urls: list[str] = []
+    monkeypatch.setattr(settings_ui.webbrowser, "open", lambda url: opened_urls.append(url))
+
+    result = panel._on_version_link_clicked(None)
+
+    assert result == "break"
+    assert opened_urls == ["https://github.com/SweetJonnySauce/EDMCHotkeys"]
+
+
+def test_on_version_link_clicked_noops_when_repository_url_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    panel = settings_ui.SettingsPanel.__new__(settings_ui.SettingsPanel)
+    panel._version_repo_url = ""
+    panel._logger = _DummyLogger()
+    opened_urls: list[str] = []
+    monkeypatch.setattr(settings_ui.webbrowser, "open", lambda url: opened_urls.append(url))
+
+    result = panel._on_version_link_clicked(None)
+
+    assert result is None
+    assert opened_urls == []
+
+
 def test_set_validation_issues_uses_hotkey_label_for_row_id() -> None:
     panel = settings_ui.SettingsPanel.__new__(settings_ui.SettingsPanel)
     panel._validation_var = _DummyVar()

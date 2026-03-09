@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import sys
 import uuid
+import webbrowser
 from dataclasses import dataclass
 from typing import Callable, Optional
 
@@ -319,6 +320,8 @@ class SettingsPanel:
         notebook_widgets: object | None = None,
         supports_side_specific_modifiers: bool = True,
         on_bindings_changed: Callable[[], None] | None = None,
+        version_text: str = "",
+        repo_url: str = "",
     ) -> None:
         if tk is None or ttk is None:
             raise RuntimeError("tkinter is unavailable")
@@ -327,6 +330,8 @@ class SettingsPanel:
         self._notebook_widgets = notebook_widgets
         self._supports_side_specific_modifiers = supports_side_specific_modifiers
         self._on_bindings_changed = on_bindings_changed
+        self._version_label_text = version_text.strip()
+        self._version_repo_url = repo_url.strip()
         self.frame = self._widget_class("Frame", ttk.Frame)(parent)
         self._row_widgets: list[_RowWidgets] = []
         self._active_modifier_tokens: dict[str, dict[str, str]] = {}
@@ -569,6 +574,23 @@ class SettingsPanel:
             return
 
         self.frame.columnconfigure(0, weight=1)
+
+        header = self._widget_class("Frame", ttk.Frame)(self.frame)
+        header.grid(row=0, column=0, sticky="ew", pady=(0, 4))
+        header.columnconfigure(0, weight=1)
+        if self._version_label_text:
+            version_kwargs: dict[str, object] = {
+                "text": self._version_label_text,
+                "anchor": "e",
+            }
+            if self._version_repo_url:
+                version_kwargs["cursor"] = "hand2"
+                version_kwargs["font"] = ("TkDefaultFont", 9, "underline")
+                version_kwargs["foreground"] = "#1e90ff"
+            version_label = tk.Label(header, **version_kwargs)
+            version_label.grid(row=0, column=1, sticky="e")
+            if self._version_repo_url:
+                version_label.bind("<Button-1>", self._on_version_link_clicked)
 
         body = self._widget_class("Frame", ttk.Frame)(self.frame)
         self._rows_body = body
@@ -1120,6 +1142,17 @@ class SettingsPanel:
         except Exception:
             self._logger.debug("Failed to process settings change callback", exc_info=True)
 
+    def _on_version_link_clicked(self, _event: object | None = None) -> str | None:
+        url = self._version_repo_url.strip()
+        if not url:
+            return None
+        try:
+            webbrowser.open(url)
+        except Exception:
+            self._logger.debug("Failed to open repository URL from settings header", exc_info=True)
+            return None
+        return "break"
+
     def _on_mousewheel(self, event: object) -> str | None:
         if tk is None:
             return None
@@ -1342,6 +1375,8 @@ def build_settings_panel(
     notebook_widgets: object | None = None,
     supports_side_specific_modifiers: bool = True,
     on_bindings_changed: Callable[[], None] | None = None,
+    version_text: str = "",
+    repo_url: str = "",
 ) -> Optional[SettingsPanel]:
     if tk is None or ttk is None:
         logger.warning("tkinter is unavailable; settings UI cannot be created")
@@ -1354,6 +1389,8 @@ def build_settings_panel(
             notebook_widgets=notebook_widgets,
             supports_side_specific_modifiers=supports_side_specific_modifiers,
             on_bindings_changed=on_bindings_changed,
+            version_text=version_text,
+            repo_url=repo_url,
         )
     except Exception:
         logger.exception("Failed to build settings panel")
