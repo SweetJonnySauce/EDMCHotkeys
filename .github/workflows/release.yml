@@ -25,6 +25,8 @@ jobs:
       version: ${{ steps.meta.outputs.version }}
       prerelease: ${{ steps.meta.outputs.prerelease }}
     steps:
+      - uses: actions/checkout@v4
+
       - name: Resolve release metadata
         id: meta
         shell: bash
@@ -32,10 +34,10 @@ jobs:
           set -euo pipefail
           if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
             version="${GITHUB_REF_NAME}"
-            meta="$(python scripts/resolve_release_version.py --version "${version}")"
+            meta="$(python3 scripts/resolve_release_version.py --version "${version}")"
           else
             version="${{ github.event.inputs.version }}"
-            meta="$(python scripts/resolve_release_version.py --version "${version}" --require-prerelease)"
+            meta="$(python3 scripts/resolve_release_version.py --version "${version}" --require-prerelease)"
           fi
           while IFS= read -r line; do
             echo "${line}" >> "$GITHUB_OUTPUT"
