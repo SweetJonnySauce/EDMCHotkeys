@@ -153,10 +153,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          first_url="$(awk -F': ' '/URL: /{print $2; exit}' dist/vtscan.txt)"
+          if [[ -z "${first_url}" ]]; then
+            echo "Failed to extract VirusTotal URL from dist/vtscan.txt" >&2
+            exit 1
+          fi
           {
             echo ""
-            echo "### VirusTotal"
-            awk -F': ' '/URL: /{print "- " $2}' dist/vtscan.txt
+            echo "**VirusTotal:** ${first_url}"
           } >> dist/RELEASE_NOTES.release.md
 
       - name: Publish GitHub release
