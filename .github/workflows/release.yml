@@ -146,11 +146,6 @@ jobs:
             --input RELEASE_NOTES.md \
             --version "${VERSION}" \
             --output dist/RELEASE_NOTES.release.md
-          {
-            echo
-            echo "## Platform Status"
-            echo "- Windows artifact: included."
-          } >> dist/RELEASE_NOTES.release.md
 
       - name: Publish GitHub release
         env:
