@@ -138,9 +138,14 @@ jobs:
 
       - name: Build release notes payload
         shell: bash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           set -euo pipefail
-          cp RELEASE_NOTES.md dist/RELEASE_NOTES.release.md
+          python scripts/extract_release_notes.py \
+            --input RELEASE_NOTES.md \
+            --version "${VERSION}" \
+            --output dist/RELEASE_NOTES.release.md
           {
             echo
             echo "## Platform Status"

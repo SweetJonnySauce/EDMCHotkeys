@@ -1,5 +1,10 @@
 # EDMCHotkeys Release Notes
 
+## v0.5.0 - Refactor Wayland Backend
+
+Summary:
+- Wayland backend has been refactored to use keyd. Other Wayland backends based on dbus have been removed.
+
 ## v0.1.0 - Initial Release
 - See README
 
