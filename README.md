@@ -1,7 +1,4 @@
 # EDMCHotkeys
-
-Global hotkeys plugin for EDMarketConnector with Windows, Linux X11, and Linux Wayland backends.
-
 [![Github All Releases](https://img.shields.io/github/downloads/SweetJonnySauce/EDMCHotkeys/total.svg)](https://github.com/SweetJonnySauce/EDMCHotkeys/releases/latest)
 [![GitHub Latest Version](https://img.shields.io/github/v/release/SweetJonnySauce/EDMCHotkeys)](https://github.com/SweetJonnySauce/EDMCHotkeys/releases/latest)
 [![Build Status][build-badge]][build-url]
@@ -10,18 +7,32 @@ Global hotkeys plugin for EDMarketConnector with Windows, Linux X11, and Linux W
 [build-badge]: https://github.com/SweetJonnySauce/EDMCHotkeys/actions/workflows/ci.yml/badge.svg?branch=main
 [build-url]: https://github.com/SweetJonnySauce/EDMCHotkeys/actions/workflows/ci.yml
 
+Global hotkeys plugin for EDMarketConnector with Windows, Linux X11, and Linux Wayland backends.
+
 ## Installation
 
 ### Windows
 - Download the current release
-- Extract the plugin into your EDMC plugins directory
+- Extract the EDMCHokeys folder into your EDMC plugins directory
 
 ### Linux X11
 - Download the current release
-- Extract the plugin into your EDMC plugins directory
+- Extract the EDMCHokeys folder into your EDMC plugins directory
+- Note: Release ships with [`python-xlib`](https://github.com/python-xlib/python-xlib) and [`six`](https://github.com/benjaminp/six) pre-installed (not part of the EDMCHotkey virus scan)
 
 ### Linux Wayland
-- This is currently going through a major overhaul. Please do not use this backend or just be aware that it will be changing substantially.
+The Linux Wayland version integrates with `keyd`. 
+- Install [`keyd`](https://github.com/rvaiya/keyd) per the instructions found on the `keyd` Github repo. `keyd` needs to be running on your system in order for the EDMCHotkeys Linux Wayland version to work. Verify the service is active with `systemctl is-active keyd`
+- Download the current release
+- Extract the EDMCHokeys folder into your EDMC plugins directory
+
+## Upgrade
+Follow these steps in order to preserve your Hotkey bindings across versions.
+1) Shut down EDMC
+2) Rename the `EDMCHotkeys` plugin folder to `EDMCHotkeys.disabled`
+3) Copy the `EDMCHotkeys` folder into the EDMC Plugins folder
+4) Copy your `bindings.json` file from `EDMCHotkeys.disabled` folder to the upgraded `EDMCHotkeys` folder
+5) Start EDMC
 
 ## Usage
 1) Open up EDMC Settings (File > Settings) and navigate to the EDMCHotkeys tab
@@ -38,7 +49,6 @@ Global hotkeys plugin for EDMarketConnector with Windows, Linux X11, and Linux W
 ## Usage notes
 - Hotkeys need to be globally unique. You will need to make sure the hotkey you assign does not conflict with other app key combos. i.e. Elite Dangerous Options>Controls
 - If you don't see a plugin in the dropdown box, that's most likely because they haven't implemented EDMCHotkeys. There's nothing I can do to help with that.
-- The Wayland version does not support side specific modifiers (i.e. LShift / RShift)
 - [EDMCModernOverlay](https://github.com/SweetJonnySauce/EDMCModernOverlay) users need release [0.8.0 Alpha #1](https://github.com/SweetJonnySauce/EDMCModernOverlay/releases/tag/0.8.0-alpha-1) or greater.
 
 ## Plugin Developer API
