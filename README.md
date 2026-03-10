@@ -2,14 +2,14 @@
 [![Github All Releases](https://img.shields.io/github/downloads/SweetJonnySauce/EDMCHotkeys/total.svg)](https://github.com/SweetJonnySauce/EDMCHotkeys/releases/latest)
 [![GitHub Latest Version](https://img.shields.io/github/v/release/SweetJonnySauce/EDMCHotkeys)](https://github.com/SweetJonnySauce/EDMCHotkeys/releases/latest)
 [![Build Status][build-badge]][build-url]
-[![VirusTotal](https://img.shields.io/badge/VirusTotal-clean-brightgreen.svg)](https://www.virustotal.com/gui/file-analysis/MzkzYTM1ODM2MDYzMWQwODMwOTI3N2NhZmUwOTE4YWE6MTc3MzAyNzg2Nw==)
+[![VirusTotal](https://www.virustotal.com/gui/file-analysis/MThlNTY5YTI4N2Y3OGNhNDE3ZjIyZGFlNDE0MTFkZmY6MTc3MzEwODQ3Mg==)
 
 [build-badge]: https://github.com/SweetJonnySauce/EDMCHotkeys/actions/workflows/ci.yml/badge.svg?branch=main
 [build-url]: https://github.com/SweetJonnySauce/EDMCHotkeys/actions/workflows/ci.yml
 
 Global hotkeys plugin for EDMarketConnector with Windows, Linux X11, and Linux Wayland backends.
 
-❗❗❗v0.5.0 Beta #1 has been released. Check it out [here](https://github.com/SweetJonnySauce/EDMCHotkeys/releases/tag/v0.5.0-beta-1)❗❗❗
+❗❗❗v0.5.0 has been released. Check it out [here](https://github.com/SweetJonnySauce/EDMCHotkeys/releases/tag/v0.5.0)❗❗❗
 
 ## Installation
 
