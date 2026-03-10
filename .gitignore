@@ -7,3 +7,7 @@ dist/
 **/__pycache__/
 **/.pytest_cache/
 bindings.json
+keyd/runtime/
+config.ini
+config.defaults.ini
+

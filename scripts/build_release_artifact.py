@@ -4,10 +4,10 @@
 from __future__ import annotations
 
 import argparse
+import configparser
 from dataclasses import dataclass
 import os
 from pathlib import Path
-import re
 import shutil
 import subprocess
 import sys
@@ -15,10 +15,16 @@ import tarfile
 import tempfile
 import zipfile
 
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+from edmc_hotkeys.semver import SemVerError, parse_semver, strip_v_prefix
+
+
+REPO_ROOT = ROOT
 TOP_LEVEL_DIR = "EDMCHotkeys"
-VERSION_PATTERN = re.compile(r"^v\d+\.\d+\.\d+(?:-rc\.\d+)?$")
+RELEASE_README_FILENAME = "README.txt"
 
 GLOBAL_EXCLUDES = (
     ".git",
@@ -34,6 +40,7 @@ GLOBAL_EXCLUDES = (
     "tests",
     "AGENTS.md",
     "Makefile",
+    "DEV.md",
     "README.md",
     "RELEASE_NOTES.md",
     "requirements-dev.txt",
@@ -47,9 +54,13 @@ TREE_FORBIDDEN_NAMES = {
     ".ruff_cache",
 }
 
+EXPECTED_ARCHIVE_TOP_LEVELS = {TOP_LEVEL_DIR, RELEASE_README_FILENAME}
+
 ALWAYS_REQUIRED = (
     "load.py",
     "edmc_hotkeys",
+    "config.defaults.ini",
+    "VERSION",
 )
 
 
@@ -68,7 +79,8 @@ class VariantSpec:
     required_paths: tuple[str, ...]
     forbidden_paths: tuple[str, ...]
     kept_scripts: tuple[str, ...]
-    include_companion_setup_doc: bool
+    config_backend_mode: str
+    include_keyd_config: bool
 
 
 VARIANT_SPECS: dict[str, VariantSpec] = {
@@ -80,69 +92,48 @@ VARIANT_SPECS: dict[str, VariantSpec] = {
         required_paths=("Xlib", "six.py"),
         forbidden_paths=(
             "dbus_next",
-            "companion",
-            "COMPANION_SETUP.md",
-            "scripts/gnome_bridge_send.py",
-            "scripts/install_gnome_bridge_companion.sh",
-            "scripts/uninstall_gnome_bridge_companion.sh",
-            "scripts/verify_gnome_bridge_companion.sh",
-            "scripts/export_companion_bindings.py",
+            "scripts/keyd_send.py",
+            "scripts/export_keyd_bindings.py",
+            "scripts/install_keyd_integration.sh",
+            "scripts/verify_keyd_integration.sh",
+            "scripts/uninstall_keyd_integration.sh",
             "third_party_licenses/dbus-next.LICENSE",
+            "config_template.ini",
         ),
         kept_scripts=(),
-        include_companion_setup_doc=False,
+        config_backend_mode="x11",
+        include_keyd_config=False,
     ),
     "linux-wayland": VariantSpec(
         variant="linux-wayland",
         artifact_suffix="linux-wayland",
-        vendor_script="scripts/vendor_dbus_next.sh",
-        archive_format="tar.gz",
-        required_paths=("dbus_next",),
-        forbidden_paths=(
-            "Xlib",
-            "six.py",
-            "companion",
-            "COMPANION_SETUP.md",
-            "scripts/gnome_bridge_send.py",
-            "scripts/install_gnome_bridge_companion.sh",
-            "scripts/uninstall_gnome_bridge_companion.sh",
-            "scripts/verify_gnome_bridge_companion.sh",
-            "scripts/export_companion_bindings.py",
-            "third_party_licenses/python-xlib.LICENSE",
-            "third_party_licenses/six.LICENSE",
-        ),
-        kept_scripts=(),
-        include_companion_setup_doc=False,
-    ),
-    "linux-wayland-gnome": VariantSpec(
-        variant="linux-wayland-gnome",
-        artifact_suffix="linux-wayland-gnome",
-        vendor_script="scripts/vendor_dbus_next.sh",
+        vendor_script=None,
         archive_format="tar.gz",
         required_paths=(
-            "dbus_next",
-            "companion",
-            "COMPANION_SETUP.md",
-            "scripts/gnome_bridge_send.py",
-            "scripts/install_gnome_bridge_companion.sh",
-            "scripts/uninstall_gnome_bridge_companion.sh",
-            "scripts/verify_gnome_bridge_companion.sh",
-            "scripts/export_companion_bindings.py",
+            "scripts/keyd_send.py",
+            "scripts/export_keyd_bindings.py",
+            "scripts/install_keyd_integration.sh",
+            "scripts/verify_keyd_integration.sh",
+            "scripts/uninstall_keyd_integration.sh",
         ),
         forbidden_paths=(
             "Xlib",
             "six.py",
+            "dbus_next",
             "third_party_licenses/python-xlib.LICENSE",
             "third_party_licenses/six.LICENSE",
+            "third_party_licenses/dbus-next.LICENSE",
+            "config_template.ini",
         ),
         kept_scripts=(
-            "scripts/gnome_bridge_send.py",
-            "scripts/install_gnome_bridge_companion.sh",
-            "scripts/uninstall_gnome_bridge_companion.sh",
-            "scripts/verify_gnome_bridge_companion.sh",
-            "scripts/export_companion_bindings.py",
+            "scripts/keyd_send.py",
+            "scripts/export_keyd_bindings.py",
+            "scripts/install_keyd_integration.sh",
+            "scripts/verify_keyd_integration.sh",
+            "scripts/uninstall_keyd_integration.sh",
         ),
-        include_companion_setup_doc=True,
+        config_backend_mode="auto",
+        include_keyd_config=True,
     ),
     "windows": VariantSpec(
         variant="windows",
@@ -154,25 +145,29 @@ VARIANT_SPECS: dict[str, VariantSpec] = {
             "Xlib",
             "six.py",
             "dbus_next",
-            "companion",
-            "COMPANION_SETUP.md",
-            "scripts/gnome_bridge_send.py",
-            "scripts/install_gnome_bridge_companion.sh",
-            "scripts/uninstall_gnome_bridge_companion.sh",
-            "scripts/verify_gnome_bridge_companion.sh",
-            "scripts/export_companion_bindings.py",
+            "scripts/keyd_send.py",
+            "scripts/export_keyd_bindings.py",
+            "scripts/install_keyd_integration.sh",
+            "scripts/verify_keyd_integration.sh",
+            "scripts/uninstall_keyd_integration.sh",
             "third_party_licenses/python-xlib.LICENSE",
             "third_party_licenses/six.LICENSE",
             "third_party_licenses/dbus-next.LICENSE",
+            "config_template.ini",
         ),
         kept_scripts=(),
-        include_companion_setup_doc=False,
+        config_backend_mode="auto",
+        include_keyd_config=False,
     ),
 }
 
 
 def validate_version(version: str) -> bool:
-    return bool(VERSION_PATTERN.fullmatch(version.strip()))
+    try:
+        parse_semver(version.strip(), allow_v_prefix=True, require_v_prefix=True)
+    except SemVerError:
+        return False
+    return True
 
 
 def _remove_path(root: Path, relpath: str) -> None:
@@ -240,14 +235,35 @@ def _prune_python_caches(workspace_root: Path) -> None:
             pyc.unlink()
 
 
+def _generate_variant_config_defaults(workspace_root: Path, spec: VariantSpec) -> None:
+    template_path = workspace_root / "config_template.ini"
+    if not template_path.exists():
+        raise ReleaseArtifactError("missing config_template.ini in workspace")
+    parser = configparser.ConfigParser()
+    try:
+        parser.read(template_path, encoding="utf-8")
+    except Exception as exc:
+        raise ReleaseArtifactError(f"failed reading config_template.ini: {exc}") from exc
+
+    output = configparser.ConfigParser()
+    output["backend"] = {"mode": spec.config_backend_mode}
+    if spec.include_keyd_config and parser.has_section("keyd"):
+        output["keyd"] = {}
+        for key, value in parser.items("keyd"):
+            output["keyd"][key] = value
+
+    out_path = workspace_root / "config.defaults.ini"
+    with out_path.open("w", encoding="utf-8") as handle:
+        handle.write("# Auto-generated by scripts/build_release_artifact.py\n")
+        output.write(handle)
+
+
 def apply_variant_policy(workspace_root: Path, spec: VariantSpec) -> None:
+    _generate_variant_config_defaults(workspace_root, spec)
     for relpath in GLOBAL_EXCLUDES:
         _remove_path(workspace_root, relpath)
     for relpath in spec.forbidden_paths:
         _remove_path(workspace_root, relpath)
-
-    if not spec.include_companion_setup_doc:
-        _remove_path(workspace_root, "COMPANION_SETUP.md")
 
     _prune_scripts(workspace_root, spec.kept_scripts)
     _prune_python_caches(workspace_root)
@@ -292,10 +308,12 @@ def _verify_tar_layout(artifact_path: Path) -> None:
                 continue
             top = name.split("/", 1)[0]
             top_levels.add(top)
-        if top_levels != {TOP_LEVEL_DIR}:
+        if top_levels != EXPECTED_ARCHIVE_TOP_LEVELS:
             joined = ", ".join(sorted(top_levels))
             raise ReleaseArtifactError(
-                f"artifact must unpack to single top-level '{TOP_LEVEL_DIR}' directory, found: {joined}"
+                "artifact must unpack to top-level entries "
+                + ", ".join(sorted(EXPECTED_ARCHIVE_TOP_LEVELS))
+                + f"; found: {joined}"
             )
 
 
@@ -308,11 +326,34 @@ def _verify_zip_layout(artifact_path: Path) -> None:
                 continue
             top = name.split("/", 1)[0]
             top_levels.add(top)
-        if top_levels != {TOP_LEVEL_DIR}:
+        if top_levels != EXPECTED_ARCHIVE_TOP_LEVELS:
             joined = ", ".join(sorted(top_levels))
             raise ReleaseArtifactError(
-                f"artifact must unpack to single top-level '{TOP_LEVEL_DIR}' directory, found: {joined}"
+                "artifact must unpack to top-level entries "
+                + ", ".join(sorted(EXPECTED_ARCHIVE_TOP_LEVELS))
+                + f"; found: {joined}"
             )
+
+
+def _release_readme_text() -> str:
+    return (
+        "Installation\n"
+        "-----------------------------------------------------------\n"
+        "1) Copy the EDMCHotkeys folder into the EDMC Plugins folder\n"
+        "2) Restart EDMC\n\n"
+        "Upgrade\n"
+        "-----------------------------------------------------------\n"
+        "1) Shut down EDMC\n"
+        "2) Rename the EDMCHotkeys plugin folder to EDMCHotkeys.disabled\n"
+        "3) Copy the EDMCHotkeys folder into the EDMC Plugins folder\n"
+        "4) Copy your bindings.json file from EDMCHotkeys.disabled folder to the upgraded EDMCHotkeys folder\n"
+        "5) Start EDMC\n\n"
+        "EDMC Plugin folder location (typical)\n"
+        "----------------------------------------------------------\n"
+        "Windows: %LOCALAPPDATA%\\EDMarketConnector\\plugins\n"
+        "Linux: ~/.local/share/EDMarketConnector/plugins\n"
+        "Linux (Flatpak): ~/.var/app/io.edcd.EDMarketConnector/data/EDMarketConnector/plugins\n"
+    )
 
 
 def build_artifact(*, variant: str, version: str, output_dir: Path, keep_work: bool) -> Path:
@@ -326,8 +367,11 @@ def build_artifact(*, variant: str, version: str, output_dir: Path, keep_work: b
 
     tempdir = Path(tempfile.mkdtemp(prefix=f"release-{variant}-"))
     workspace_root = tempdir / TOP_LEVEL_DIR
+    release_readme_path = tempdir / RELEASE_README_FILENAME
     try:
         _copy_workspace(workspace_root)
+        (workspace_root / "VERSION").write_text(strip_v_prefix(version.strip()) + "\n", encoding="utf-8")
+        release_readme_path.write_text(_release_readme_text(), encoding="utf-8")
         _run_vendor_script(workspace_root, spec.vendor_script)
         apply_variant_policy(workspace_root, spec)
         verify_tree(workspace_root, spec)
@@ -337,6 +381,7 @@ def build_artifact(*, variant: str, version: str, output_dir: Path, keep_work: b
         if spec.archive_format == "tar.gz":
             with tarfile.open(artifact_path, "w:gz") as archive:
                 archive.add(workspace_root, arcname=TOP_LEVEL_DIR)
+                archive.add(release_readme_path, arcname=RELEASE_README_FILENAME)
             _verify_tar_layout(artifact_path)
         elif spec.archive_format == "zip":
             with zipfile.ZipFile(artifact_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
@@ -345,6 +390,7 @@ def build_artifact(*, variant: str, version: str, output_dir: Path, keep_work: b
                         continue
                     arcname = f"{TOP_LEVEL_DIR}/{path.relative_to(workspace_root).as_posix()}"
                     archive.write(path, arcname)
+                archive.write(release_readme_path, RELEASE_README_FILENAME)
             _verify_zip_layout(artifact_path)
         else:
             raise ReleaseArtifactError(f"unsupported archive format: {spec.archive_format}")
@@ -359,7 +405,11 @@ def build_artifact(*, variant: str, version: str, output_dir: Path, keep_work: b
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--variant", choices=sorted(VARIANT_SPECS), required=True)
-    parser.add_argument("--version", required=True, help="Version/tag, e.g. v0.1.0 or v0.1.0-rc.1")
+    parser.add_argument(
+        "--version",
+        required=True,
+        help="Version/tag, e.g. v0.1.0, v0.1.0-alpha-1, v0.1.0-beta-1, or v0.1.0-rc.1",
+    )
     parser.add_argument("--output-dir", default=str(REPO_ROOT / "dist"))
     parser.add_argument("--keep-work", action="store_true", help="Keep intermediate build workspace for debugging")
     return parser.parse_args(argv)

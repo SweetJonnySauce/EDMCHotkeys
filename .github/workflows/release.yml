@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Pre-release version (vX.Y.Z-rc.N)"
+        description: "Pre-release version (vX.Y.Z-<prerelease>, e.g. v0.5.0-beta-1)"
         required: true
         type: string
 
@@ -25,6 +25,8 @@ jobs:
       version: ${{ steps.meta.outputs.version }}
       prerelease: ${{ steps.meta.outputs.prerelease }}
     steps:
+      - uses: actions/checkout@v4
+
       - name: Resolve release metadata
         id: meta
         shell: bash
@@ -32,21 +34,14 @@ jobs:
           set -euo pipefail
           if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
             version="${GITHUB_REF_NAME}"
-            if [[ ! "${version}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-              echo "Invalid tag version: ${version}" >&2
-              exit 1
-            fi
-            prerelease="false"
+            meta="$(python3 scripts/resolve_release_version.py --version "${version}")"
           else
             version="${{ github.event.inputs.version }}"
-            if [[ ! "${version}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$ ]]; then
-              echo "Manual-dispatch version must match vX.Y.Z-rc.N" >&2
-              exit 1
-            fi
-            prerelease="true"
+            meta="$(python3 scripts/resolve_release_version.py --version "${version}" --require-prerelease)"
           fi
-          echo "version=${version}" >> "$GITHUB_OUTPUT"
-          echo "prerelease=${prerelease}" >> "$GITHUB_OUTPUT"
+          while IFS= read -r line; do
+            echo "${line}" >> "$GITHUB_OUTPUT"
+          done <<< "${meta}"
 
   quality-gate:
     runs-on: ubuntu-latest
@@ -78,9 +73,6 @@ jobs:
             artifact_ext: tar.gz
           - variant: linux-wayland
             artifact_suffix: linux-wayland
-            artifact_ext: tar.gz
-          - variant: linux-wayland-gnome
-            artifact_suffix: linux-wayland-gnome
             artifact_ext: tar.gz
           - variant: windows
             artifact_suffix: windows
@@ -128,8 +120,8 @@ jobs:
           set -euo pipefail
           ls -lah dist
           count="$(find dist -maxdepth 1 -type f -name '*.tar.gz' -o -type f -name '*.zip' | wc -l | tr -d ' ')"
-          if [[ "${count}" != "4" ]]; then
-            echo "Expected 4 artifacts (3 Linux + 1 Windows), found ${count}" >&2
+          if [[ "${count}" != "3" ]]; then
+            echo "Expected 3 artifacts (2 Linux + 1 Windows), found ${count}" >&2
             exit 1
           fi
           sha256sum dist/*.tar.gz dist/*.zip > dist/SHA256SUMS.txt
@@ -137,13 +129,38 @@ jobs:
 
       - name: Build release notes payload
         shell: bash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           set -euo pipefail
-          cp RELEASE_NOTES.md dist/RELEASE_NOTES.release.md
+          python scripts/extract_release_notes.py \
+            --input RELEASE_NOTES.md \
+            --version "${VERSION}" \
+            --output dist/RELEASE_NOTES.release.md
+
+      - name: VirusTotal source scan
+        shell: bash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          VT_API_KEY: ${{ secrets.VT_API_KEY }}
+        run: |
+          set -euo pipefail
+          python3 scripts/virustotal_scan_source.py \
+            --version "${VERSION}" \
+            --output dist/vtscan.txt
+
+      - name: Append VirusTotal URLs to release notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          first_url="$(awk -F': ' '/URL: /{print $2; exit}' dist/vtscan.txt)"
+          if [[ -z "${first_url}" ]]; then
+            echo "Failed to extract VirusTotal URL from dist/vtscan.txt" >&2
+            exit 1
+          fi
           {
-            echo
-            echo "## Platform Status"
-            echo "- Windows artifact: included."
+            echo ""
+            echo "**VirusTotal:** ${first_url}"
           } >> dist/RELEASE_NOTES.release.md
 
       - name: Publish GitHub release
@@ -156,7 +173,7 @@ jobs:
           set -euo pipefail
           if gh release view "${VERSION}" >/dev/null 2>&1; then
             echo "Release ${VERSION} already exists; uploading assets and updating notes."
-            gh release upload "${VERSION}" dist/*.tar.gz dist/*.zip dist/SHA256SUMS.txt --clobber
+            gh release upload "${VERSION}" dist/*.tar.gz dist/*.zip dist/SHA256SUMS.txt dist/vtscan.txt --clobber
             edit_flags=(--title "${VERSION}" --notes-file dist/RELEASE_NOTES.release.md)
             if [[ "${PRERELEASE}" == "true" ]]; then
               edit_flags+=(--prerelease)
@@ -167,9 +184,9 @@ jobs:
             if [[ "${PRERELEASE}" == "true" ]]; then
               flags+=(--prerelease)
             fi
-            if ! gh release create "${VERSION}" "${flags[@]}" dist/*.tar.gz dist/*.zip dist/SHA256SUMS.txt; then
+            if ! gh release create "${VERSION}" "${flags[@]}" dist/*.tar.gz dist/*.zip dist/SHA256SUMS.txt dist/vtscan.txt; then
               echo "Release create failed; retrying as upload/edit in case of race."
-              gh release upload "${VERSION}" dist/*.tar.gz dist/*.zip dist/SHA256SUMS.txt --clobber
+              gh release upload "${VERSION}" dist/*.tar.gz dist/*.zip dist/SHA256SUMS.txt dist/vtscan.txt --clobber
               edit_flags=(--title "${VERSION}" --notes-file dist/RELEASE_NOTES.release.md)
               if [[ "${PRERELEASE}" == "true" ]]; then
                 edit_flags+=(--prerelease)

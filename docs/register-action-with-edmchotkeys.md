@@ -120,7 +120,7 @@ Behavior:
 - Mixed same-family generic + side-specific tokens are invalid.
 
 Backend caveat:
-- Wayland portal and GNOME bridge do not support side-specific modifiers; use generic modifiers there.
+- Linux Wayland keyd supports side-specific modifiers.
 
 ## Integration Verification Checklist
 1. Confirm `register_action(...)` returned `True` for all expected actions.

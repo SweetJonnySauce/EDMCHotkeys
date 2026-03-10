@@ -155,6 +155,6 @@
 
 ## Packaging + Setup Docs
 - Packaged EDMC dependency bundling plan: `docs/packaged-edmc-dependency-bundling.md`
-- Linux user setup (Wayland portal, X11): `docs/linux-user-setup.md`
+- Linux user setup (Wayland keyd, X11): `docs/linux-user-setup.md`
 - Manual QA checklist: `docs/manual-qa-checklist.md`
 - Runtime feature flags: `docs/feature-flags.md`

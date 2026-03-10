@@ -66,6 +66,7 @@ class HotkeyPlugin:
         self._backend_mode = backend_mode or "auto"
         self._hotkey_backend = hotkey_backend or select_backend(
             logger=logger,
+            plugin_dir=self._plugin_dir,
             backend_mode_override=self._backend_mode,
         )
         contract_issues = backend_contract_issues(self._hotkey_backend)
@@ -239,7 +240,23 @@ class HotkeyPlugin:
             source,
             extra={"qualname": "HotkeyPlugin.on_hotkey"},
         )
-        self.invoke_binding(binding, source=source)
+        dispatched = self.invoke_binding(binding, source=source)
+        self._logger.debug(
+            "Hotkey dispatch result: binding_id=%s action_id=%s success=%s source=%s",
+            binding.id,
+            binding.action_id,
+            dispatched,
+            source,
+            extra={"qualname": "HotkeyPlugin.on_hotkey"},
+        )
+        if not dispatched:
+            self._logger.warning(
+                "Hotkey dispatch failed: binding_id=%s action_id=%s source=%s",
+                binding.id,
+                binding.action_id,
+                source,
+                extra={"qualname": "HotkeyPlugin.on_hotkey"},
+            )
 
     def _log_backend_runtime_status(self) -> None:
         status_backend = as_runtime_status_backend(self._hotkey_backend)

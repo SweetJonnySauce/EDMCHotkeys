@@ -5,8 +5,9 @@ from __future__ import annotations
 import logging
 import sys
 import uuid
+import webbrowser
 from dataclasses import dataclass
-from typing import Optional
+from typing import Callable, Optional
 
 from .hotkey import CANONICAL_MODIFIER_ORDER, normalize_key_token, pretty_hotkey_text
 from .registry import ACTION_CARDINALITY_SINGLE, normalize_action_cardinality
@@ -32,6 +33,7 @@ _MODIFIER_STATE_FLAGS = (
     ("shift", _SHIFT_MASK),
     ("win", _SUPER_MASK),
 )
+_MODIFIER_STATE_MASK = _SHIFT_MASK | _CONTROL_MASK | _ALT_MASK | _SUPER_MASK
 _MODIFIER_KEYSYMS = {
     "Shift_L",
     "Shift_R",
@@ -43,6 +45,23 @@ _MODIFIER_KEYSYMS = {
     "Super_R",
     "Meta_L",
     "Meta_R",
+}
+_EDITING_KEYSYMS = {
+    "BackSpace",
+    "Delete",
+    "Left",
+    "Right",
+    "Up",
+    "Down",
+    "Home",
+    "End",
+    "Prior",
+    "Next",
+    "Insert",
+    "Tab",
+    "ISO_Left_Tab",
+    "Return",
+    "KP_Enter",
 }
 _MODIFIER_KEYSYM_TO_TOKEN = {
     "Control_L": ("ctrl", "ctrl_l"),
@@ -81,17 +100,63 @@ _SHIFTED_SYMBOL_TO_BASE_KEY = {
 
 
 _COLUMN_SPECS = (
-    ("Hotkey", 18),
+    ("Hotkey", 14),
     ("Plugin", 16),
-    ("Action", 28),
+    ("Action", 24),
     ("Payload", 24),
     ("Enabled", 7),
-    ("Removed", 8),
+    ("", 8),
 )
 _ENABLED_CHOICES = ("Yes", "No")
-_CELL_PAD_X = (0, 12)
-_CELL_PAD_Y = 4
+_CELL_PAD_X = (0, 6)
+_CELL_PAD_Y = 2
 _HEADER_PAD_Y = (0, 6)
+
+KEYD_ALERT_STATE_INACTIVE = "Inactive"
+KEYD_ALERT_STATE_KEYD_MISSING = "KeydMissing"
+KEYD_ALERT_STATE_INTEGRATION_MISSING = "IntegrationMissing"
+KEYD_ALERT_STATE_READY = "Ready"
+KEYD_ALERT_STATE_EXPORT_REQUIRED = "ExportRequired"
+KEYD_ALERT_STATE_AUTO_HINT = "AutoHint"
+KEYD_ALERT_STATE_X11_KEYD_CONFLICT = "X11KeydConflict"
+
+_KEYD_ALERT_VISIBLE_STATES = {
+    KEYD_ALERT_STATE_KEYD_MISSING,
+    KEYD_ALERT_STATE_INTEGRATION_MISSING,
+    KEYD_ALERT_STATE_EXPORT_REQUIRED,
+    KEYD_ALERT_STATE_AUTO_HINT,
+    KEYD_ALERT_STATE_X11_KEYD_CONFLICT,
+}
+
+
+@dataclass(frozen=True)
+class KeydAlertActionOutcome:
+    refreshed_alert: "KeydAlertViewModel | None" = None
+    success_message: str = ""
+    error_summary: str = ""
+    error_details: str = ""
+
+
+@dataclass(frozen=True)
+class KeydAlertAction:
+    label: str
+    callback: Callable[[], KeydAlertActionOutcome | None]
+
+
+@dataclass(frozen=True)
+class KeydAlertViewModel:
+    state: str
+    summary: str = ""
+    body: str = ""
+    primary_action: KeydAlertAction | None = None
+    copy_commands: str = ""
+    show_copy_button: bool = False
+    show_privilege_warning: bool = False
+    show_terminal_warning: bool = False
+
+    @property
+    def visible(self) -> bool:
+        return self.state in _KEYD_ALERT_VISIBLE_STATES
 
 
 def _enabled_label(value: bool) -> str:
@@ -104,6 +169,125 @@ def _enabled_from_label(value: str) -> bool:
 
 def _new_binding_id() -> str:
     return f"binding_{uuid.uuid4().hex[:8]}"
+
+
+def _append_restart_step(command_steps: list[str], *, systemd_available: bool) -> None:
+    if systemd_available:
+        restart_cmd = "sudo systemctl restart keyd"
+        if any("systemctl restart keyd" in step for step in command_steps):
+            return
+        command_steps.append(restart_cmd)
+        return
+    command_steps.append("# Restart keyd manually for your init system.")
+
+
+def build_keyd_copy_commands(
+    *,
+    state: str,
+    install_command: str,
+    apply_command: str,
+    systemd_available: bool,
+) -> str:
+    """Build copy-ready command block for keyd integration and export workflows."""
+    command_steps: list[str] = []
+    if state == KEYD_ALERT_STATE_INTEGRATION_MISSING:
+        if install_command.strip():
+            command_steps.append(install_command.strip())
+        if apply_command.strip():
+            command_steps.append(apply_command.strip())
+        _append_restart_step(command_steps, systemd_available=systemd_available)
+    elif state == KEYD_ALERT_STATE_EXPORT_REQUIRED:
+        if apply_command.strip():
+            command_steps.append(apply_command.strip())
+        _append_restart_step(command_steps, systemd_available=systemd_available)
+    return "\n".join(command_steps)
+
+
+def keyd_alert_view_for_state(
+    state: str,
+    *,
+    install_command: str = "",
+    apply_command: str = "",
+    systemd_available: bool = True,
+    on_install: Callable[[], KeydAlertActionOutcome | None] | None = None,
+    on_export: Callable[[], KeydAlertActionOutcome | None] | None = None,
+) -> KeydAlertViewModel:
+    """Return the default UI model for a keyd preferences alert state."""
+    if state == KEYD_ALERT_STATE_KEYD_MISSING:
+        return KeydAlertViewModel(
+            state=state,
+            summary="Install keyd and restart EDMC.",
+            body=(
+                "keyd is not installed or not active. Install and start keyd, restart EDMC, then return to this settings page "
+                "for integration setup."
+            ),
+        )
+    if state == KEYD_ALERT_STATE_INTEGRATION_MISSING:
+        return KeydAlertViewModel(
+            state=state,
+            summary="EDMCHotkeys keyd integration is not installed yet.",
+            body=(
+                "Integration installs the helper script and keyd config so keyd can "
+                "forward binding ids to EDMCHotkeys."
+            ),
+            primary_action=(
+                KeydAlertAction(label="Install Integration", callback=on_install)
+                if on_install is not None
+                else None
+            ),
+            copy_commands=build_keyd_copy_commands(
+                state=state,
+                install_command=install_command,
+                apply_command=apply_command,
+                systemd_available=systemd_available,
+            ),
+            show_copy_button=True,
+            show_privilege_warning=True,
+            show_terminal_warning=True,
+        )
+    if state == KEYD_ALERT_STATE_EXPORT_REQUIRED:
+        return KeydAlertViewModel(
+            state=state,
+            summary="Hotkey changes require exporting a new keyd config.",
+            body="Export and apply the generated keyd config, then restart keyd.",
+            primary_action=(
+                KeydAlertAction(label="Export Config", callback=on_export)
+                if on_export is not None
+                else None
+            ),
+            copy_commands=build_keyd_copy_commands(
+                state=state,
+                install_command=install_command,
+                apply_command=apply_command,
+                systemd_available=systemd_available,
+            ),
+            show_copy_button=True,
+            show_privilege_warning=True,
+            show_terminal_warning=True,
+        )
+    if state == KEYD_ALERT_STATE_AUTO_HINT:
+        return KeydAlertViewModel(
+            state=state,
+            summary="Keyd is not active.",
+            body=(
+                "EDMCHotkeys is running in Wayland auto mode, but keyd is not active. "
+                "Install/start keyd, restart EDMC, then return to this settings page "
+                "to enable keyd integration."
+            ),
+        )
+    if state == KEYD_ALERT_STATE_X11_KEYD_CONFLICT:
+        return KeydAlertViewModel(
+            state=state,
+            summary="Keyd may conflict with X11 hotkeys.",
+            body=(
+                "EDMCHotkeys is currently using the linux-x11 backend while keyd is active. "
+                "These conflicts may cause hotkeys to not work. "
+                "You can either stop keyd or remove /etc/keyd/edmchotkeys.conf and restart keyd to remove the conflict."
+            ),
+        )
+    if state in {KEYD_ALERT_STATE_INACTIVE, KEYD_ALERT_STATE_READY}:
+        return KeydAlertViewModel(state=state)
+    return KeydAlertViewModel(state=KEYD_ALERT_STATE_INACTIVE)
 
 
 @dataclass
@@ -135,6 +319,9 @@ class SettingsPanel:
         logger: logging.Logger,
         notebook_widgets: object | None = None,
         supports_side_specific_modifiers: bool = True,
+        on_bindings_changed: Callable[[], None] | None = None,
+        version_text: str = "",
+        repo_url: str = "",
     ) -> None:
         if tk is None or ttk is None:
             raise RuntimeError("tkinter is unavailable")
@@ -142,20 +329,30 @@ class SettingsPanel:
         self._state = state
         self._notebook_widgets = notebook_widgets
         self._supports_side_specific_modifiers = supports_side_specific_modifiers
+        self._on_bindings_changed = on_bindings_changed
+        self._version_label_text = version_text.strip()
+        self._version_repo_url = repo_url.strip()
         self.frame = self._widget_class("Frame", ttk.Frame)(parent)
         self._row_widgets: list[_RowWidgets] = []
         self._active_modifier_tokens: dict[str, dict[str, str]] = {}
         self._header_font: object | None = None
+        self._keyd_alert_summary_font: object | None = None
         self._refreshing_action_options = False
         self._suppress_var_trace_handlers = False
+        self._keyd_alert_model: KeydAlertViewModel | None = None
+        self._keyd_details_expanded = False
+        self._rows_scrollable = False
+        self._rows_scrollbar: object | None = None
+        self._rows_body: object | None = None
+        self._rows_scrollbar_width = 0
 
         self._plugin_values = sorted({option.plugin for option in state.action_options if option.plugin})
 
         self._build_layout()
         for row in state.rows:
-            self.add_row(row)
+            self.add_row(row, notify_changes=False)
 
-    def add_row(self, row: BindingRow) -> None:
+    def add_row(self, row: BindingRow, *, notify_changes: bool = True) -> None:
         if tk is None or ttk is None:
             return
 
@@ -181,7 +378,10 @@ class SettingsPanel:
         )
         hotkey_entry.bind("<KeyPress>", lambda event, var=hotkey_var, widget=hotkey_entry: self._capture_hotkey(event, var, widget))
         hotkey_entry.bind("<KeyRelease>", lambda event, widget=hotkey_entry: self._release_modifier(event, widget))
-        hotkey_entry.bind("<FocusOut>", lambda _event, widget=hotkey_entry: self._clear_modifiers(widget))
+        hotkey_entry.bind("<FocusOut>", lambda _event, widget=hotkey_entry: self._on_hotkey_commit(widget))
+        hotkey_entry.bind("<Return>", lambda _event, widget=hotkey_entry: self._on_hotkey_commit(widget))
+        hotkey_entry.bind("<KP_Enter>", lambda _event, widget=hotkey_entry: self._on_hotkey_commit(widget))
+        hotkey_entry.bind("<Tab>", lambda _event, widget=hotkey_entry: self._on_hotkey_commit(widget))
         plugin_combo = self._widget_class("Combobox", ttk.Combobox)(
             self._rows_inner,
             textvariable=plugin_var,
@@ -210,6 +410,10 @@ class SettingsPanel:
             pady=_CELL_PAD_Y,
             sticky="w",
         )
+        payload_entry.bind("<FocusOut>", lambda _event: self._notify_bindings_changed())
+        payload_entry.bind("<Return>", lambda _event: self._notify_bindings_changed())
+        payload_entry.bind("<KP_Enter>", lambda _event: self._notify_bindings_changed())
+        payload_entry.bind("<Tab>", lambda _event: self._notify_bindings_changed())
         enabled_combo = self._widget_class("Combobox", ttk.Combobox)(
             self._rows_inner,
             textvariable=enabled_var,
@@ -218,11 +422,16 @@ class SettingsPanel:
             width=_COLUMN_SPECS[4][1],
         )
         enabled_combo.grid(row=row_index, column=4, padx=_CELL_PAD_X, pady=_CELL_PAD_Y, sticky="w")
+        enabled_combo.bind("<<ComboboxSelected>>", lambda _event: self._notify_bindings_changed())
         remove_button = self._widget_class("Button", ttk.Button)(
             self._rows_inner,
             text="Remove",
             width=_COLUMN_SPECS[5][1],
         )
+        try:
+            remove_button.configure(style="Hotkeys.RowRemove.TButton")
+        except Exception:
+            pass
         remove_button.grid(row=row_index, column=5, pady=_CELL_PAD_Y, sticky="w")
         self._bind_mousewheel_recursive(self._rows_inner)
 
@@ -262,6 +471,8 @@ class SettingsPanel:
         self._refresh_row_positions()
         self._refresh_scroll_region()
         self._refresh_all_action_options()
+        if notify_changes:
+            self._notify_bindings_changed()
 
     def get_rows(self) -> list[BindingRow]:
         rows: list[BindingRow] = []
@@ -285,8 +496,78 @@ class SettingsPanel:
         if not issues:
             self._validation_var.set("No validation issues.")
             return
-        lines = [f"[{issue.level}] {issue.row_id}.{issue.field}: {issue.message}" for issue in issues]
+        lines = [
+            f"[{issue.level}] {self._row_label_for_validation_issue(issue.row_id)}.{issue.field}: {issue.message}"
+            for issue in issues
+        ]
         self._validation_var.set("\n".join(lines))
+
+    def _row_label_for_validation_issue(self, row_id: str) -> str:
+        target_row_id = row_id.strip()
+        if not target_row_id:
+            return row_id
+        for row in getattr(self, "_row_widgets", []):
+            current_id = row.row_id_var.get().strip()
+            if current_id != target_row_id:
+                continue
+            hotkey = row.hotkey_var.get().strip()
+            return hotkey or row_id
+        return row_id
+
+    def set_keyd_alert(self, alert: KeydAlertViewModel | None) -> None:
+        if tk is None:
+            return
+        self._keyd_alert_model = alert
+        self._clear_keyd_feedback()
+        if alert is None or not alert.visible:
+            self._keyd_alert_frame.grid_remove()
+            return
+        self._keyd_alert_frame.grid()
+        self._apply_keyd_summary_font()
+        self._keyd_alert_var.set(alert.summary.strip())
+        self._keyd_alert_body_var.set(alert.body.strip())
+        self._keyd_alert_warning_var.set(self._format_keyd_warning_text(alert))
+        self._keyd_details_expanded = False
+        self._keyd_alert_details_button_var.set("Show details")
+        self._keyd_error_details_label.grid_remove()
+
+        if alert.primary_action is None:
+            self._keyd_primary_button.grid_remove()
+            self._keyd_primary_button.configure(text="")
+        else:
+            self._keyd_primary_button.configure(text=alert.primary_action.label)
+            self._keyd_primary_button.grid()
+
+        if alert.show_copy_button and alert.copy_commands.strip():
+            self._keyd_copy_button.grid()
+        else:
+            self._keyd_copy_button.grid_remove()
+
+    def show_keyd_alert_success(self, message: str) -> None:
+        if tk is None:
+            return
+        self._keyd_alert_success_var.set(message.strip())
+        self._keyd_alert_error_frame.grid_remove()
+        self._keyd_alert_error_summary_var.set("")
+        self._keyd_alert_error_details_var.set("")
+        self._keyd_error_details_button.grid_remove()
+        self._keyd_error_details_label.grid_remove()
+        self._keyd_details_expanded = False
+
+    def show_keyd_alert_error(self, summary: str, details: str = "") -> None:
+        if tk is None:
+            return
+        self._keyd_alert_success_var.set("")
+        self._keyd_alert_error_summary_var.set(summary.strip())
+        self._keyd_alert_error_details_var.set(details.strip())
+        self._keyd_alert_error_frame.grid()
+        if details.strip():
+            self._keyd_error_details_button.grid()
+        else:
+            self._keyd_error_details_button.grid_remove()
+            self._keyd_error_details_label.grid_remove()
+        self._keyd_details_expanded = False
+        self._keyd_alert_details_button_var.set("Show details")
 
     def _build_layout(self) -> None:
         if tk is None or ttk is None:
@@ -294,7 +575,25 @@ class SettingsPanel:
 
         self.frame.columnconfigure(0, weight=1)
 
+        header = self._widget_class("Frame", ttk.Frame)(self.frame)
+        header.grid(row=0, column=0, sticky="ew", pady=(0, 4))
+        header.columnconfigure(0, weight=1)
+        if self._version_label_text:
+            version_kwargs: dict[str, object] = {
+                "text": self._version_label_text,
+                "anchor": "e",
+            }
+            if self._version_repo_url:
+                version_kwargs["cursor"] = "hand2"
+                version_kwargs["font"] = ("TkDefaultFont", 9, "underline")
+                version_kwargs["foreground"] = "#1e90ff"
+            version_label = tk.Label(header, **version_kwargs)
+            version_label.grid(row=0, column=1, sticky="e")
+            if self._version_repo_url:
+                version_label.bind("<Button-1>", self._on_version_link_clicked)
+
         body = self._widget_class("Frame", ttk.Frame)(self.frame)
+        self._rows_body = body
         body.grid(row=1, column=0, sticky="nsew")
         body.columnconfigure(0, weight=1)
         body.rowconfigure(1, weight=1)
@@ -302,8 +601,10 @@ class SettingsPanel:
         style = ttk.Style()
         style.configure("Hotkeys.TEntry", padding=0)
         style.configure("Hotkeys.TCombobox", padding=0)
+        style.configure("Hotkeys.RowRemove.TButton", padding=(4, 0))
 
         header_font = None
+        alert_summary_font = None
         if tkfont is not None:
             style = ttk.Style()
             font_name = style.lookup("TLabel", "font") or "TkDefaultFont"
@@ -311,27 +612,40 @@ class SettingsPanel:
                 base_font = tkfont.nametofont(font_name)
             except Exception:
                 base_font = tkfont.nametofont("TkDefaultFont")
-            header_font = tkfont.Font(font=base_font, weight="bold")
+            family = base_font.actual("family") or "TkDefaultFont"
+            size = int(base_font.actual("size") or 9)
+            header_font = (family, size, "bold")
+            alert_summary_font = (family, size, "bold")
             self._header_font = header_font
-            style.configure("Hotkeys.Header.TLabel", font=header_font)
+            self._keyd_alert_summary_font = alert_summary_font
+        else:
+            self._header_font = ("TkDefaultFont", 9, "bold")
+            self._keyd_alert_summary_font = ("TkDefaultFont", 9, "bold")
 
-        self._canvas = tk.Canvas(body, borderwidth=0, highlightthickness=0, height=200)
+        self._canvas = tk.Canvas(body, borderwidth=0, highlightthickness=0, height=400)
         self._canvas.grid(row=1, column=0, sticky="nsew")
         scrollbar = self._widget_class("Scrollbar", ttk.Scrollbar)(
             body,
             orient="vertical",
             command=self._canvas.yview,
         )
+        self._rows_scrollbar = scrollbar
         scrollbar.grid(row=1, column=1, sticky="ns")
         self._canvas.configure(yscrollcommand=scrollbar.set)
         scrollbar_width = scrollbar.winfo_reqwidth()
-        body.columnconfigure(1, minsize=scrollbar_width)
+        self._rows_scrollbar_width = scrollbar_width
+        body.columnconfigure(1, minsize=0)
+        scrollbar.grid_remove()
         self._rows_inner = self._widget_class("Frame", ttk.Frame)(self._canvas)
+        header_label_font = header_font or self._header_font
         for index, (label, width) in enumerate(_COLUMN_SPECS):
-            label_kwargs = {"text": label, "width": width, "anchor": "w"}
-            if header_font is not None:
-                label_kwargs["style"] = "Hotkeys.Header.TLabel"
-            self._widget_class("Label", ttk.Label)(self._rows_inner, **label_kwargs).grid(
+            label_kwargs = {
+                "text": label,
+                "width": width,
+                "anchor": "w",
+                "font": header_label_font,
+            }
+            tk.Label(self._rows_inner, **label_kwargs).grid(
                 row=0,
                 column=index,
                 padx=_CELL_PAD_X if index < len(_COLUMN_SPECS) - 1 else 0,
@@ -352,15 +666,231 @@ class SettingsPanel:
             ),
         ).grid(row=0, column=0, sticky="w")
 
+        self._keyd_alert_var = tk.StringVar(value="")
+        self._keyd_alert_body_var = tk.StringVar(value="")
+        self._keyd_alert_warning_var = tk.StringVar(value="")
+        self._keyd_alert_success_var = tk.StringVar(value="")
+        self._keyd_alert_error_summary_var = tk.StringVar(value="")
+        self._keyd_alert_error_details_var = tk.StringVar(value="")
+        self._keyd_alert_details_button_var = tk.StringVar(value="Show details")
+
+        self._keyd_alert_frame = self._widget_class("Frame", ttk.Frame)(self.frame)
+        self._keyd_alert_frame.grid(row=3, column=0, sticky="ew", pady=(8, 0))
+        self._keyd_alert_frame.grid_remove()
+        self._keyd_alert_frame.columnconfigure(0, weight=1)
+
+        summary_label_kwargs = {
+            "textvariable": self._keyd_alert_var,
+            "justify": "left",
+            "wraplength": 640,
+        }
+        summary_label_kwargs["font"] = alert_summary_font or self._keyd_alert_summary_font
+        # Use a plain tk.Label with explicit font so bold rendering does not depend on ttk/myNotebook style mapping.
+        self._keyd_alert_summary_label = tk.Label(self._keyd_alert_frame, anchor="w", **summary_label_kwargs)
+        self._keyd_alert_summary_label.grid(
+            row=0,
+            column=0,
+            sticky="ew",
+        )
+        self._apply_keyd_summary_font()
+        self._widget_class(
+            "Label",
+            ttk.Label,
+        )(self._keyd_alert_frame, textvariable=self._keyd_alert_body_var, justify="left", wraplength=640).grid(
+            row=1,
+            column=0,
+            sticky="ew",
+            pady=(4, 0),
+        )
+
+        self._widget_class(
+            "Label",
+            ttk.Label,
+        )(self._keyd_alert_frame, textvariable=self._keyd_alert_warning_var, justify="left", wraplength=640).grid(
+            row=2,
+            column=0,
+            sticky="ew",
+            pady=(4, 0),
+        )
+
+        self._keyd_alert_actions = self._widget_class("Frame", ttk.Frame)(self._keyd_alert_frame)
+        self._keyd_alert_actions.grid(row=3, column=0, sticky="w", pady=(6, 0))
+        self._keyd_primary_button = self._widget_class(
+            "Button",
+            ttk.Button,
+        )(self._keyd_alert_actions, text="", command=self._on_keyd_primary_action)
+        self._keyd_primary_button.grid(row=0, column=0, sticky="w")
+        self._keyd_primary_button.grid_remove()
+        self._keyd_copy_button = self._widget_class(
+            "Button",
+            ttk.Button,
+        )(self._keyd_alert_actions, text="Copy Commands", command=self._on_keyd_copy_commands)
+        self._keyd_copy_button.grid(row=0, column=1, sticky="w", padx=(6, 0))
+        self._keyd_copy_button.grid_remove()
+
+        self._widget_class(
+            "Label",
+            ttk.Label,
+        )(self._keyd_alert_frame, textvariable=self._keyd_alert_success_var, justify="left", wraplength=640).grid(
+            row=4,
+            column=0,
+            sticky="ew",
+            pady=(4, 0),
+        )
+
+        self._keyd_alert_error_frame = self._widget_class("Frame", ttk.Frame)(self._keyd_alert_frame)
+        self._keyd_alert_error_frame.grid(row=5, column=0, sticky="ew", pady=(4, 0))
+        self._keyd_alert_error_frame.columnconfigure(0, weight=1)
+        self._keyd_alert_error_frame.grid_remove()
+        self._widget_class(
+            "Label",
+            ttk.Label,
+        )(
+            self._keyd_alert_error_frame,
+            textvariable=self._keyd_alert_error_summary_var,
+            justify="left",
+            wraplength=640,
+        ).grid(
+            row=0,
+            column=0,
+            sticky="ew",
+        )
+        self._keyd_error_details_button = self._widget_class(
+            "Button",
+            ttk.Button,
+        )(
+            self._keyd_alert_error_frame,
+            textvariable=self._keyd_alert_details_button_var,
+            command=self._toggle_keyd_error_details,
+        )
+        self._keyd_error_details_button.grid(row=1, column=0, sticky="w", pady=(4, 0))
+        self._keyd_error_details_button.grid_remove()
+        self._keyd_error_details_label = self._widget_class(
+            "Label",
+            ttk.Label,
+        )(
+            self._keyd_alert_error_frame,
+            textvariable=self._keyd_alert_error_details_var,
+            justify="left",
+            wraplength=640,
+        )
+        self._keyd_error_details_label.grid(row=2, column=0, sticky="ew", pady=(4, 0))
+        self._keyd_error_details_label.grid_remove()
+
         self._validation_var = tk.StringVar(value="")
         self._widget_class("Label", ttk.Label)(self.frame, textvariable=self._validation_var, justify="left").grid(
-            row=3,
+            row=4,
             column=0,
             sticky="ew",
             pady=(6, 0),
         )
 
         self._bind_mousewheel_recursive(self.frame)
+
+    def _clear_keyd_feedback(self) -> None:
+        self._keyd_alert_success_var.set("")
+        self._keyd_alert_error_summary_var.set("")
+        self._keyd_alert_error_details_var.set("")
+        self._keyd_alert_error_frame.grid_remove()
+        self._keyd_error_details_button.grid_remove()
+        self._keyd_error_details_label.grid_remove()
+
+    def _apply_keyd_summary_font(self) -> None:
+        font = self._keyd_alert_summary_font
+        label = getattr(self, "_keyd_alert_summary_label", None)
+        if font is None or label is None:
+            return
+        try:
+            label.configure(font=font)
+            return
+        except Exception:
+            pass
+        try:
+            label["font"] = font
+            return
+        except Exception:
+            self._logger.debug("Unable to apply keyd summary font", exc_info=True)
+
+    def _format_keyd_warning_text(self, alert: KeydAlertViewModel) -> str:
+        warnings: list[str] = []
+        action_label = "this action"
+        privilege_subject = "This action"
+        if alert.primary_action is not None and alert.primary_action.label.strip():
+            action_label = alert.primary_action.label.strip()
+            lower_label = action_label.casefold()
+            if "integration" in lower_label:
+                privilege_subject = "Integration"
+            elif "export" in lower_label:
+                privilege_subject = "Export"
+            else:
+                privilege_subject = action_label
+        if alert.show_privilege_warning:
+            warnings.append(f"Warning: {privilege_subject} requires elevated privileges (sudo).")
+        if alert.show_terminal_warning:
+            warnings.append(f"Warning: {action_label} opens a terminal/auth prompt.")
+        return "\n".join(warnings)
+
+    def _on_keyd_primary_action(self) -> None:
+        if self._keyd_alert_model is None or self._keyd_alert_model.primary_action is None:
+            return
+        callback = self._keyd_alert_model.primary_action.callback
+        try:
+            outcome = callback()
+        except Exception as exc:
+            self._logger.exception("Keyd alert primary action failed")
+            self.show_keyd_alert_error(
+                "Action failed. See details for troubleshooting output.",
+                str(exc),
+            )
+            return
+        self._apply_keyd_action_outcome(outcome)
+
+    def _on_keyd_copy_commands(self) -> None:
+        if self._keyd_alert_model is None:
+            return
+        commands = self._keyd_alert_model.copy_commands.strip()
+        if not commands:
+            self.show_keyd_alert_error("No commands available to copy.")
+            return
+        try:
+            owner = self.frame.winfo_toplevel() if hasattr(self.frame, "winfo_toplevel") else self.frame
+            owner.clipboard_clear()
+            owner.clipboard_append(commands)
+            self.show_keyd_alert_success("Commands copied to clipboard.")
+        except Exception as exc:
+            self._logger.debug("Clipboard copy failed", exc_info=exc)
+            self.show_keyd_alert_error(
+                "Unable to copy commands to clipboard.",
+                str(exc),
+            )
+
+    def _apply_keyd_action_outcome(self, outcome: KeydAlertActionOutcome | None) -> None:
+        if outcome is None:
+            self.show_keyd_alert_success("Action completed.")
+            return
+        if outcome.refreshed_alert is not None:
+            self.set_keyd_alert(outcome.refreshed_alert)
+        if outcome.error_summary.strip():
+            self.show_keyd_alert_error(outcome.error_summary, outcome.error_details)
+            return
+        if outcome.success_message.strip():
+            self.show_keyd_alert_success(outcome.success_message)
+            return
+        if outcome.refreshed_alert is None:
+            self.show_keyd_alert_success("Action completed.")
+
+    def _toggle_keyd_error_details(self) -> None:
+        details = self._keyd_alert_error_details_var.get().strip()
+        if not details:
+            return
+        if self._keyd_details_expanded:
+            self._keyd_error_details_label.grid_remove()
+            self._keyd_alert_details_button_var.set("Show details")
+            self._keyd_details_expanded = False
+            return
+        self._keyd_error_details_label.grid()
+        self._keyd_alert_details_button_var.set("Hide details")
+        self._keyd_details_expanded = True
 
     def _remove_row(self, target_row: _RowWidgets) -> None:
         remaining: list[_RowWidgets] = []
@@ -375,11 +905,13 @@ class SettingsPanel:
         self._refresh_row_positions()
         self._refresh_scroll_region()
         self._refresh_all_action_options()
+        self._notify_bindings_changed()
 
     def _on_plugin_value_changed(self, row: _RowWidgets) -> None:
         if self._suppress_var_trace_handlers:
             return
         self._refresh_all_action_options()
+        self._notify_bindings_changed()
 
     def _on_action_value_changed(self, row: _RowWidgets) -> None:
         if self._suppress_var_trace_handlers:
@@ -389,6 +921,7 @@ class SettingsPanel:
         if row.action_id_var.get().strip() != selected_action_id:
             row.action_id_var.set(selected_action_id)
         self._refresh_all_action_options()
+        self._notify_bindings_changed()
 
     def _refresh_all_action_options(self) -> None:
         if self._refreshing_action_options:
@@ -481,11 +1014,37 @@ class SettingsPanel:
         if tk is None:
             return
         self._canvas.itemconfigure(self._canvas_window, width=event.width)
+        self._refresh_scroll_region()
 
     def _refresh_scroll_region(self) -> None:
         if tk is None:
             return
-        self._canvas.configure(scrollregion=self._canvas.bbox("all"))
+        bbox = self._canvas.bbox("all")
+        self._canvas.configure(scrollregion=bbox)
+        scrollable = False
+        if bbox is not None:
+            content_height = int(bbox[3] - bbox[1])
+            viewport_height = int(self._canvas.winfo_height() or 0)
+            if viewport_height <= 0:
+                viewport_height = int(self._canvas.cget("height") or 0)
+            scrollable = content_height > max(0, viewport_height)
+        self._set_rows_scrollable(scrollable)
+
+    def _set_rows_scrollable(self, scrollable: bool) -> None:
+        self._rows_scrollable = bool(scrollable)
+        scrollbar = self._rows_scrollbar
+        if scrollbar is not None:
+            if self._rows_scrollable:
+                scrollbar.grid()
+            else:
+                scrollbar.grid_remove()
+        body = self._rows_body
+        if body is not None:
+            minsize = self._rows_scrollbar_width if self._rows_scrollable else 0
+            try:
+                body.columnconfigure(1, minsize=minsize)
+            except Exception:
+                pass
 
     def _bind_mousewheel_recursive(self, widget: object) -> None:
         if not hasattr(widget, "bind"):
@@ -505,6 +1064,8 @@ class SettingsPanel:
         state = int(getattr(event, "state", 0))
         char = str(getattr(event, "char", "") or "")
         active_tokens = tuple(self._active_modifier_tokens.get(str(widget), {}).values())
+        if self._should_allow_hotkey_text_editing(keysym=keysym, char=char, state=state, active_tokens=active_tokens):
+            return None
         captured, resolved_groups, ambiguous_groups = _hotkey_from_parts_with_details(
             state=state,
             keysym=keysym,
@@ -546,9 +1107,57 @@ class SettingsPanel:
     def _clear_modifiers(self, widget: object) -> None:
         self._active_modifier_tokens.pop(str(widget), None)
 
+    def _should_allow_hotkey_text_editing(
+        self,
+        *,
+        keysym: str,
+        char: str,
+        state: int,
+        active_tokens: tuple[str, ...],
+    ) -> bool:
+        if active_tokens:
+            return False
+        effective_modifier_state = state & _MODIFIER_STATE_MASK
+        # Allow typed/pasted editing when only Shift is pressed so users can
+        # enter '+' and mixed-case text for manual hotkey edits.
+        if effective_modifier_state and effective_modifier_state != _SHIFT_MASK:
+            return False
+        if keysym in _EDITING_KEYSYMS:
+            return True
+        if len(char) == 1 and char.isprintable():
+            return True
+        return False
+
+    def _on_hotkey_commit(self, widget: object) -> str | None:
+        self._clear_modifiers(widget)
+        self._notify_bindings_changed()
+        return None
+
+    def _notify_bindings_changed(self) -> None:
+        callback = getattr(self, "_on_bindings_changed", None)
+        if callback is None:
+            return
+        try:
+            callback()
+        except Exception:
+            self._logger.debug("Failed to process settings change callback", exc_info=True)
+
+    def _on_version_link_clicked(self, _event: object | None = None) -> str | None:
+        url = self._version_repo_url.strip()
+        if not url:
+            return None
+        try:
+            webbrowser.open(url)
+        except Exception:
+            self._logger.debug("Failed to open repository URL from settings header", exc_info=True)
+            return None
+        return "break"
+
     def _on_mousewheel(self, event: object) -> str | None:
         if tk is None:
             return None
+        if not self._rows_scrollable:
+            return "break"
 
         direction = 0
         event_num = getattr(event, "num", None)
@@ -765,6 +1374,9 @@ def build_settings_panel(
     logger: logging.Logger,
     notebook_widgets: object | None = None,
     supports_side_specific_modifiers: bool = True,
+    on_bindings_changed: Callable[[], None] | None = None,
+    version_text: str = "",
+    repo_url: str = "",
 ) -> Optional[SettingsPanel]:
     if tk is None or ttk is None:
         logger.warning("tkinter is unavailable; settings UI cannot be created")
@@ -776,6 +1388,9 @@ def build_settings_panel(
             logger=logger,
             notebook_widgets=notebook_widgets,
             supports_side_specific_modifiers=supports_side_specific_modifiers,
+            on_bindings_changed=on_bindings_changed,
+            version_text=version_text,
+            repo_url=repo_url,
         )
     except Exception:
         logger.exception("Failed to build settings panel")

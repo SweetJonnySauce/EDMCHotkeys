@@ -1,5 +1,6 @@
 """EDMC Hotkeys plugin package."""
 
+from .plugin_version import PLUGIN_TAG_VERSION, PLUGIN_VERSION
 from .plugin import Binding, HotkeyPlugin
 from .backends import (
     BackendAvailability,
@@ -7,7 +8,6 @@ from .backends import (
     HotkeyBackend,
     NullHotkeyBackend,
     backend_contract_issues,
-    WaylandPortalBackend,
     WindowsHotkeyBackend,
     X11HotkeyBackend,
     detect_linux_session,
@@ -23,6 +23,8 @@ from .registry import (
 )
 from .settings_state import ActionOption, BindingRow, SettingsState, ValidationIssue
 from .storage import BindingsStore
+
+__version__ = PLUGIN_VERSION
 
 __all__ = [
     "Action",
@@ -42,9 +44,10 @@ __all__ = [
     "backend_contract_issues",
     "QueuedMainThreadDispatchExecutor",
     "ThreadedWorkerDispatchExecutor",
+    "PLUGIN_TAG_VERSION",
+    "PLUGIN_VERSION",
     "SettingsState",
     "ValidationIssue",
-    "WaylandPortalBackend",
     "WindowsHotkeyBackend",
     "X11HotkeyBackend",
     "default_document",
