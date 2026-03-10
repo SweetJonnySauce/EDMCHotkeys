@@ -44,7 +44,7 @@ All public symbols below are currently labeled `stable`.
 | `params_schema` | `dict \| None` | `None` | Optional payload schema metadata. |
 | `thread_policy` | `str` | `"main"` | `"main"` or `"worker"`. Invalid value is rejected at registration. |
 | `enabled` | `bool` | `True` | Disabled actions are not invokable. |
-| `cardinality` | `str` | `"single"` | `"single"` or `"multi"`; invalid values normalize to `"single"` with warning. |
+| `cardinality` | `str` | `"single"` | Determines reuse of action in EDMCHotkeys preference pane. `"single"`: Action can only be used once or `"multi"`: action can be reused (payloads must be unique); invalid values normalize to `"single"` with warning. |
 
 ### `Binding`
 | Field | Type | Default | Notes |
