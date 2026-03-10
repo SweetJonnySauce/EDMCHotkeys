@@ -500,26 +500,31 @@ class WindowsMessageLoopClient:
         self._hook_proc_ref = None
 
     def _keyboard_proc(self, n_code: int, w_param: int, l_param: int) -> int:
+        suppress_event = False
         if n_code == HC_ACTION:
             try:
                 event = ctypes.cast(l_param, ctypes.POINTER(_KBDLLHOOKSTRUCT)).contents
                 key_vk = int(event.vkCode)
                 if w_param in (WM_KEYDOWN, WM_SYSKEYDOWN):
-                    self._handle_low_level_keydown(key_vk)
+                    suppress_event = self._handle_low_level_keydown(key_vk)
                 elif w_param in (WM_KEYUP, WM_SYSKEYUP):
-                    self._handle_low_level_keyup(key_vk)
+                    suppress_event = self._handle_low_level_keyup(key_vk)
             except Exception:
                 self._logger.exception("Low-level hook callback failed")
+        if suppress_event:
+            return 1
         return int(self._user32.CallNextHookEx(self._hook_handle or 0, n_code, w_param, l_param))
 
-    def _handle_low_level_keydown(self, key_vk: int) -> None:
+    def _handle_low_level_keydown(self, key_vk: int) -> bool:
         binding_ids = self._side_bindings_for_key(key_vk)
         if not binding_ids:
             self._prune_inactive_side_bindings()
-            return
+            return False
+        suppress = False
         for binding_id in binding_ids:
             with self._side_lock:
                 if binding_id in self._active_side_bindings:
+                    suppress = True
                     continue
                 registration = self._side_bindings.get(binding_id)
             if registration is None:
@@ -528,19 +533,25 @@ class WindowsMessageLoopClient:
                 continue
             with self._side_lock:
                 self._active_side_bindings.add(binding_id)
+            suppress = True
             if self._callback is not None:
                 try:
                     self._callback(binding_id)
                 except Exception:
                     self._logger.exception("Windows low-level hotkey callback failed")
         self._prune_inactive_side_bindings()
+        return suppress
 
-    def _handle_low_level_keyup(self, key_vk: int) -> None:
+    def _handle_low_level_keyup(self, key_vk: int) -> bool:
+        suppress = False
         with self._side_lock:
             binding_ids = list(self._side_bindings_by_key.get(key_vk, set()))
             for binding_id in binding_ids:
+                if binding_id in self._active_side_bindings:
+                    suppress = True
                 self._active_side_bindings.discard(binding_id)
         self._prune_inactive_side_bindings()
+        return suppress
 
     def _prune_inactive_side_bindings(self) -> None:
         with self._side_lock:
