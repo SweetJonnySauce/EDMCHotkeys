@@ -868,6 +868,29 @@ def test_notify_bindings_changed_logs_debug_on_callback_error() -> None:
     assert panel._logger.debug_calls == ["Failed to process settings change callback"]
 
 
+def test_on_add_binding_clicked_adds_blank_row_without_immediate_notify() -> None:
+    panel = settings_ui.SettingsPanel.__new__(settings_ui.SettingsPanel)
+    captured: dict[str, object] = {}
+
+    def _fake_add_row(row: settings_ui.BindingRow, *, notify_changes: bool = True) -> None:
+        captured["row"] = row
+        captured["notify_changes"] = notify_changes
+
+    panel.add_row = _fake_add_row  # type: ignore[method-assign]
+
+    panel._on_add_binding_clicked()
+
+    added_row = captured["row"]
+    assert isinstance(added_row, settings_ui.BindingRow)
+    assert added_row.id == ""
+    assert added_row.hotkey == ""
+    assert added_row.plugin == ""
+    assert added_row.action_id == ""
+    assert added_row.payload is None
+    assert added_row.enabled is True
+    assert captured["notify_changes"] is False
+
+
 def test_on_version_link_clicked_opens_repository_url(monkeypatch: pytest.MonkeyPatch) -> None:
     panel = settings_ui.SettingsPanel.__new__(settings_ui.SettingsPanel)
     panel._version_repo_url = "https://github.com/SweetJonnySauce/EDMCHotkeys"

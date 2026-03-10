@@ -1,5 +1,10 @@
 # EDMCHotkeys Release Notes
 
+## v0.6.0
+
+Bug Fixes:
+- Added logic to not immediately show validation errors when a new binding row is added.
+
 ## v0.5.0 - Refactor Wayland Backend
 
 Summary:

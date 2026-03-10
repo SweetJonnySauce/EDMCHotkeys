@@ -661,9 +661,7 @@ class SettingsPanel:
         self._widget_class("Button", ttk.Button)(
             controls,
             text="Add Binding",
-            command=lambda: self.add_row(
-                BindingRow(id="", hotkey="", plugin="", action_id="", payload=None, enabled=True)
-            ),
+            command=self._on_add_binding_clicked,
         ).grid(row=0, column=0, sticky="w")
 
         self._keyd_alert_var = tk.StringVar(value="")
@@ -906,6 +904,12 @@ class SettingsPanel:
         self._refresh_scroll_region()
         self._refresh_all_action_options()
         self._notify_bindings_changed()
+
+    def _on_add_binding_clicked(self) -> None:
+        self.add_row(
+            BindingRow(id="", hotkey="", plugin="", action_id="", payload=None, enabled=True),
+            notify_changes=False,
+        )
 
     def _on_plugin_value_changed(self, row: _RowWidgets) -> None:
         if self._suppress_var_trace_handlers:
