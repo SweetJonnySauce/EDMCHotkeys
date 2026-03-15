@@ -43,7 +43,7 @@ Follow these steps in order to preserve your Hotkey bindings across versions.
     - **Hotkey:** Keypress the hotkey you want to assign (don't actually type in "LCtrl", etc.)
     - **Plugin:** Select available plugins from the dropdown. Plugins have to register with EDMCHotkeys to show up on this list.
     - **Action:** Select available actions for the chosen plugins from the dropdown. Plugins have to register actions with EDMCHotkeys to show up on this list.
-    - **Payload**: Refer to the registered plugin documenation for what to put here (most likely, this will be blank).
+    - **Payload**: Refer to the registered plugin documenation for what to put here (most likely, this will be blank). See this [doc](https://github.com/SweetJonnySauce/EDMCHotkeys/blob/main/docs/hotkey-payload-examples.md) for more info. 
     - **Enabled:** Yes, the hotkey will be intercepted. No, the hotkeywill be ignored.
     - **Remove:** Remove the hotkey.
 3) For Linux Wayand users, you will need to export Hotkeys configurations to `keyd` whenever they are created, updated, or removed. Follow the instructions found on the EDMCHotkey settings preference pane (EDMC > File > Settings) to export the Hotkeys configurations.
